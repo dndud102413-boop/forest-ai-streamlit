@@ -1,0 +1,110 @@
+{
+  "findings": [
+    {
+      "title": "수작업 규칙으로 만든 라벨을 동일 피처로 ML 재학습 → 순환학습/데이터누수로 정확도 무의미",
+      "severity": "치명",
+      "category": "데이터누수",
+      "evidence": "CELL 3: make_priority(row)가 AGCLS_NM/DMCLS_NM/DNST_NM/elevation으로 score를 더해 priority 라벨 생성(line 182-216) → 같은 컬럼 X=df[[FRTP_NM,KOFTR_NM,DMCLS_NM,AGCLS_NM,DNST_NM,elevation]]으로 RandomForest/XGBoost 학습(line 223-273). CELL 5/6도 동일: make_growth_suitability/make_pest_vulnerability가 KOFTR_NM/AGCLS_NM/DMCLS_NM/DNST_NM/elevation/slope/aspect_dir로 라벨을 만들고(line 531-621), CELL 6에서 정확히 같은 features=[...,'aspect_dir']로 학습(line 660-726). 라벨이 입력의 결정론적 함수이므로 모델은 if/else 규칙을 재현할 뿐이고 보고되는 accuracy(예: classification_report)는 '규칙 암기' 성능일 뿐 일반화·예측력과 무관.",
+      "fix": "(1) 규칙 기반이 목표면 ML을 제거하고 make_* 함수를 그대로 규칙엔진으로 서비스에 사용하라(현재 forest_ai_report는 이미 make_management_priority를 규칙으로 호출하므로 모델 예측은 불필요한 우회). (2) ML이 목표라면 라벨을 규칙이 아니라 독립 관측치(실제 현장 피해목 조사, 생장량 실측, 병해충 발생 이력 등)에서 가져오고, 라벨 생성에 쓴 피처를 입력에서 제외하거나 누수 없는 외생 변수만 사용하라. (3) 공간 자기상관을 고려해 spatial block CV(지역 단위 GroupKFold)로 평가하고, 무작위 train_test_split에 의한 인접 폴리곤 누수를 방지하라."
+    },
+    {
+      "title": "aspect_dir 컬럼 미생성 → make_growth_suitability/make_pest_vulnerability에서 KeyError, 학습 셀 전체 크래시",
+      "severity": "치명",
+      "category": "예외/견고성",
+      "evidence": "CELL 4는 aspect_deg(0-360 연속값)만 계산해 sample['aspect']에 저장(line 380-400, 469-514)하고 df에는 'aspect'만 존재. 그러나 make_growth_suitability는 row['aspect_dir'](line 574), make_pest_vulnerability는 row['aspect_dir'](line 613)을 참조하고, CELL 6 features 리스트에도 'aspect_dir'(line 668)과 인코더 루프(line 681)에 포함. 'aspect_dir' 컬럼을 만드는 코드가 노트북 어디에도 없어 df.apply(make_growth_suitability) 시점(line 644)에 KeyError 발생.",
+      "fix": "aspect_deg → 8방위 문자열로 변환하는 함수를 정의하고 df['aspect_dir']를 명시적으로 생성하라. 예: def aspect_to_direction(a): \n  if np.isnan(a): return '평지'\n  dirs=['북향','북동향','동향','남동향','남향','남서향','서향','북서향']\n  return dirs[int(((a+22.5)%360)//45)]\n그리고 df['aspect_dir']=df['aspect'].apply(aspect_to_direction)를 make_* 호출 전에 실행. 추가로 slope==0(평지)일 때 aspect는 정의되지 않으므로 '평지'로 별도 처리."
+    },
+    {
+      "title": "aspect_to_direction() 함수 미정의 → forest_ai_report 호출 시 NameError 런타임 크래시",
+      "severity": "치명",
+      "category": "예외/견고성",
+      "evidence": "forest_ai_report 두 정의 모두에서 aspect_direction = aspect_to_direction(aspect_value)를 호출(CELL 7 line 794, CELL 15 line 1115)하지만 aspect_to_direction의 def가 노트북 전체에 없음. CELL 7/15/16-22의 forest_ai_report(...) 호출은 전부 NameError로 즉시 실패. CELL 13의 test loop(line 987-1002)는 try/except로 가리지만 except 들여쓰기가 def 본문과 어긋나 IndentationError(아래 별도 항목)도 동반.",
+      "fix": "위 항목의 aspect_to_direction를 forest_ai_report 정의 이전 셀에서 전역으로 정의하라. 노트북은 셀 순서에 의존하므로, 보고용 함수가 의존하는 모든 헬퍼(aspect_to_direction, encoders, growth_model, pest_model, slope_deg, aspect_deg)를 한 셀에 모으거나 명시적 import/정의 순서를 보장하라."
+    },
+    {
+      "title": "dem.index(lon,lat)에 원시 WGS84 좌표 전달 + 좌표계 혼용으로 완전히 잘못된 고도/경사/향",
+      "severity": "치명",
+      "category": "좌표계/공간",
+      "evidence": "get_forest_info는 dem.index(lon, lat)에 EPSG:4326 위경도를 그대로 넣음(CELL 28 line 1349, CELL 56 line 1902, 모든 streamlit app line 2124/2263/2457/2590/2766). 그러나 CELL 4 후반부에서 dem은 EPSG:5179로 재투영된 gangwon_dem_5179.tif로 교체됨(line 454) → 5179 데이터셋의 dem.index에 127.x,37.x(도 단위)를 넣으면 좌표가 affine transform 밖이라 음수/범위초과 인덱스가 나옴. 반대로 predict_forest_priority(CELL 3 line 289)와 초기 dem(4326)에서는 dem.index(lon,lat) 순서 자체는 맞지만, CELL 4에서 dem 전역이 5179로 바뀐 뒤 정의되는 forest_ai_report는 point.to_crs(dem.crs)로 올바르게 변환(line 786-789)하는 반면 get_forest_info만 변환 없이 위경도를 직접 전달해 일관성이 깨짐.",
+      "fix": "DEM 좌표계를 단일화하고(권장: 임상도와 동일한 EPSG:5179), 모든 추출을 point.to_crs(dem.crs) 후의 (x,y)로 통일하라. rasterio는 dem.index(x,y)가 (lon/x, lat/y) 순서이므로 항상 투영좌표(x=동쪽,y=북쪽)를 넘겨야 함. get_forest_info도 forest_ai_report와 동일하게 point_dem=point.to_crs(dem.crs); x,y=point_dem.geometry.iloc[0].x,.y; dem.index(x,y)로 수정. 또한 슬로프/향 계산용 slope_deg/aspect_deg 배열과 dem 객체가 같은 파일·같은 CRS에서 나왔는지 단일 출처로 보장."
+    },
+    {
+      "title": "dem.index 경계검사 부재 + 음수 인덱스 silent wrap → 엉뚱한 픽셀값을 정상값처럼 반환",
+      "severity": "높음",
+      "category": "래스터처리",
+      "evidence": "row,col = dem.index(...) 후 dem.read(1)[row,col]을 경계검사 없이 인덱싱(CELL 28 line 1349-1350, CELL 56 line 1902-1903, streamlit line 2124-2125 등). numpy는 음수 인덱스를 배열 끝에서부터로 해석하므로 범위를 벗어난 좌표(예: 5179 dem에 위경도 전달, 또는 DEM 범위 밖 GPS)가 IndexError 없이 배열 반대편 픽셀값을 반환 → '고도 없음'이 아니라 잘못된 고도를 신뢰값처럼 출력. CELL 3/4의 추출 루프는 bare except로 NaN 처리하지만 음수 인덱스는 예외를 던지지 않아 그 보호도 무력.",
+      "fix": "추출 전 0<=row<dem.height and 0<=col<dem.width를 명시 검사하고 벗어나면 None/NaN 반환. rasterio.sample 사용을 권장: vals=list(dem.sample([(x,y)])); v=vals[0][0]; if v==dem.nodata: NaN. 또는 dem.index(x,y) 후 window 검증. nodata도 명시 비교해 결측 처리."
+    },
+    {
+      "title": "DEM을 EPSG:4326 상태에서 np.gradient로 경사/향 계산 → 도(degree) 단위를 미터로 오용한 경사 왜곡",
+      "severity": "높음",
+      "category": "래스터처리",
+      "evidence": "CELL 4 첫 경사계산은 4326 DEM의 xres,yres(=도 단위 픽셀크기, 예 ~0.0001도)를 그대로 np.gradient(dem_array, yres, xres)에 넘김(line 369-382). 고도는 미터, 거리는 도이므로 dz/dx 단위가 m/도가 되어 경사도가 비현실적으로 커짐(이후 print로 slope 통계 확인하지만 단위 부정합). 5179 재투영 후 재계산(line 460-470)은 미터 단위라 그나마 타당하나, 같은 변수명 slope_deg/aspect_deg를 덮어써 어느 셀이 실행됐는지에 따라 결과가 달라지는 비결정성 존재.",
+      "fix": "경사/향은 반드시 투영좌표계(미터, 예 EPSG:5179)의 DEM에서 계산하라. 위경도 격자에서 계산해야 한다면 위도별 m/도 변환(예 dx_m=xres*111320*cos(lat), dy_m=yres*110540)을 적용하거나, 먼저 5179로 재투영 후 gradient. 또한 4326 기반 slope/aspect 계산 셀을 삭제해 변수 덮어쓰기로 인한 비결정성을 제거."
+    },
+    {
+      "title": "제품 목표(식재 수종 추천)와 구현(기존 임분 진단)의 근본적 불일치",
+      "severity": "치명",
+      "category": "제품/목표불일치",
+      "evidence": "개발자 진술 목표는 '위치에 심기 적합한 수종 추천'. 그러나 전 구현은 forest.contains(point)로 그 위치에 이미 존재하는 임분 속성(FRTP_NM/KOFTR_NM/경급/영급/밀도)을 조회·진단할 뿐(get_forest_info CELL 28, forest_ai_report CELL 7/15). make_growth_suitability조차 '식재 적합 수종'이 아니라 '현재 임분의 생육 적합도'를 평가. 산림 폴리곤 밖이면 가장 가까운 기존 임분을 그대로 가져옴(streamlit line 2250-2258) → 식재 추천이 아니라 인접지 진단. KOFTR_NM(수종)은 출력에서도 빠져 추천은커녕 표기조차 없음(get_forest_info 반환 dict에 수종 없음).",
+      "fix": "추천 산출물을 새로 설계하라: 입지 인자(고도/경사/향/토양/기후대, 기존 식생대)를 입력으로, 적합 식재 수종 후보를 점수화하는 적지적수(right-tree-right-site) 매트릭스 또는 모델을 구축. 라벨은 산림청 권장 조림 수종표/기후대별 적지표 등 외부 기준에서 가져오고, 출력은 '추천 수종 Top-N + 근거'. 기존 임분 진단 기능은 보조 정보로 분리. Gemini 프롬프트도 '진단' 대신 '식재 추천 근거 설명'으로 변경."
+    },
+    {
+      "title": "공간 인덱스 부재로 forest.contains 전수 스캔 + 매 호출 shapefile 재로딩으로 심각한 성능 저하",
+      "severity": "높음",
+      "category": "아키텍처",
+      "evidence": "forest[forest.contains(point)]는 전체 폴리곤(수만~수십만 행 가능, concat된 51_1+51_2)에 대해 매 요청마다 선형 스캔(CELL 28 line 1340, forest_ai_report line 777/1098, 모든 streamlit). 폴리곤 밖일 때 nearest는 forest_temp.geometry.distance(user_point)를 전체에 계산(streamlit line 2252) → O(N) 거리계산. 더욱이 CELL 80/84/97/102/112 streamlit 앱은 @st.cache_resource 없이 버튼 클릭 콜백 안에서 매번 gpd.read_file 두 개와 rasterio.open을 재실행(line 2091-2106 등) → 수백 MB I/O 반복.",
+      "fix": "(1) 데이터 로딩은 @st.cache_resource(CELL 56처럼)로 1회만. (2) sindex 사용: idx=list(forest.sindex.query(point, predicate='contains')) 또는 gpd.sjoin/STRtree로 후보 축소 후 contains. (3) nearest는 forest.sindex.nearest(point) 사용. (4) 사전 단계에서 강원권 bbox로 clip(CELL 118/119)한 경량 데이터를 서비스에 사용하고 GeoParquet 등 빠른 포맷으로 저장."
+    },
+    {
+      "title": "nearest 폴리곤 선택 시 좌표계/거리 의미 및 경급·영급 문자열 매칭의 비일관성",
+      "severity": "중간",
+      "category": "좌표계/공간",
+      "evidence": "streamlit nearest 분기는 5179 평면거리(user_point는 5179)로 distance 계산(line 2252)해 미터 단위는 맞지만, 동시에 dem.index(lon,lat)에는 위경도를 넣어(line 2263) 좌표계가 한 함수 안에서 혼재. 또한 make_priority 등은 '5'/'6' in str(AGCLS_NM) 식 부분 문자열 매칭(CELL 3 line 186, CELL 102 line 2629)을 쓰는데 '15영급' 같은 값이 있으면 '5'가 매칭되어 오분류 위험. 밀도는 row['DNST_NM']=='밀'/'소' 정확매칭(line 2636)과 '밀' in str(...) 부분매칭(line 198)이 셀마다 달라 동일 데이터에 다른 규칙 적용.",
+      "fix": "DNST_NM/AGCLS_NM/DMCLS_NM의 실제 도메인 값 집합을 dbf에서 확인 후 명시적 매핑 dict로 정규화(예 영급은 정수 파싱: int(re.sub('[^0-9]','',v))). 부분 문자열 매칭을 제거하고 정확 매핑 사용. nearest와 DEM 추출의 좌표계를 단일 투영계로 통일."
+    },
+    {
+      "title": "bare except로 모든 예외를 NaN/무시 처리하여 좌표계 버그·결측을 은폐",
+      "severity": "높음",
+      "category": "예외/견고성",
+      "evidence": "CELL 3 line 162-167, CELL 4 line 391-397/483-491/505-511의 추출 루프가 except:(맨몸 except)로 KeyboardInterrupt 포함 모든 예외를 잡아 elevation/slope/aspect에 np.nan을 채움. 그 결과 dem.index 좌표계 불일치로 인한 IndexError가 단지 '결측 다수'로만 나타나 근본 원인(잘못된 CRS/좌표순서)이 드러나지 않음. 이후 df.dropna()(line 179 등)로 결측 행이 통째로 사라져 표본 편향까지 유발.",
+      "fix": "except를 except (IndexError, ...) as e로 좁히고, 좌표계 변환은 루프 밖에서 일괄 처리(sample.to_crs(dem.crs) 후 rasterio.sample로 벡터화). 결측 비율을 로깅하고 일정 임계 초과 시 경고. dropna 전후 행수를 비교 출력해 표본 손실을 가시화."
+    },
+    {
+      "title": "전역 가변 상태(dem, slope_deg, aspect_deg, encoders, *_model) 의존으로 셀 실행 순서에 따른 비결정적 동작",
+      "severity": "중간",
+      "category": "아키텍처",
+      "evidence": "forest_ai_report/get_forest_info가 전역 dem, slope_deg, aspect_deg, encoders, growth_model, pest_model, growth_encoder, pest_encoder를 인자 없이 참조(CELL 7/15/28). dem은 CELL 1(4326)→CELL 3(4326)→CELL 4(5179)로 전역이 재바인딩되고, slope_deg/aspect_deg도 4326/5179 계산 셀에서 덮어써짐. 어떤 셀을 어떤 순서로 돌렸는지에 따라 같은 좌표에 다른 결과가 나옴. CELL 27에서 get_forest_info를 정의(CELL 28) 전에 호출(line 1322)하는 등 순서 오류도 존재.",
+      "fix": "핵심 로직을 순수 함수로 리팩터링하여 dem, forest, slope_deg, aspect_deg, models를 인자로 주입(또는 클래스/딕셔너리 묶음). 노트북 상단에서 단일 CRS·단일 DEM을 한 번만 로드하고 이후 재바인딩 금지. 함수 정의-호출 순서를 정리하고 .py 모듈로 추출해 import."
+    },
+    {
+      "title": "centroid 계산을 지리좌표/투영 혼용 + 폴리곤 대표점으로 사용해 라벨링 표본 위치 오차",
+      "severity": "중간",
+      "category": "좌표계/공간",
+      "evidence": "CELL 3/4에서 sample['centroid']=sample.geometry.centroid를 forest.crs(5179)에서 계산 후(line 153/331) to_crs(4326)로 변환해 DEM 추출(line 156-167). centroid는 5179(미터)에서 계산하므로 기하학적으로는 타당하나, concave/도넛형 임분 폴리곤에서 centroid가 폴리곤 밖에 떨어질 수 있어 다른 임분의 DEM값을 가져올 수 있음. 또한 학습은 centroid 1점의 고도/경사로 폴리곤 전체를 대표시켜 지형 변이를 무시.",
+      "fix": "대표점은 centroid 대신 representative_point()(폴리곤 내부 보장) 사용. 가능하면 폴리곤 단위 zonal statistics(rasterstats.zonal_stats로 평균/표준편차 고도·경사)를 피처로 사용해 지형 변이를 반영."
+    },
+    {
+      "title": "Gemini가 ML 출력을 무비판적으로 '전문가 진단'으로 서술 + 입력 검증/예외/비용 관리 부재",
+      "severity": "중간",
+      "category": "예외/견고성",
+      "evidence": "generate_llm_forest_report는 누수로 만들어진 growth/pest 결과를 그대로 프롬프트에 넣어 'X 전문가이다'로 권위 있는 진단을 생성(CELL 12 line 936-970). 모델·규칙의 신뢰구간/근거 없이 단정적 문장 생성 → 환각·과신 위험. lat/lon 입력 검증 없음(gradio Number/Textbox에서 한국 범위 밖 좌표도 그대로 처리), API 키는 getpass 후 평문 환경변수, 호출 실패·rate limit 재시도 없음(streamlit 일부만 try/except).",
+      "fix": "(1) 프롬프트에 '규칙 기반 추정이며 현장 검증 필요' 면책과 입력 근거를 명시. (2) lat/lon 범위 검증(예 33<=lat<=39, 124<=lon<=132) 및 DEM/임상도 범위 밖 안내. (3) API 호출에 timeout·재시도·예외처리, 키는 Colab secrets/Secret Manager로 관리. (4) 식재 추천으로 전환 시 LLM은 '설명'만 담당하고 추천 결정은 결정론적 적지표가 담당하도록 역할 분리."
+    },
+    {
+      "title": "CELL 13 try/except 들여쓰기 오류 및 셀 내 dangling 코드로 Syntax/IndentationError",
+      "severity": "높음",
+      "category": "예외/견고성",
+      "evidence": "CELL 13(line 987-1003)에서 for 루프 본문의 try:는 들여쓰기가 되어 있으나 대응 except Exception as e:가 컬럼 0 부근으로 어긋나(line 1001) IndentationError 유발, 그 아래 ' forest_ai_report(37.685, 128.758)'(line 1003)도 한 칸 들여쓰기된 dangling 문. CELL 96(line 2367-2369)도 with 블록과 st.write가 어긋나 들여쓰기 오류. 이런 셀은 실행 자체가 불가.",
+      "fix": "try/except 블록 들여쓰기를 for 본문 기준으로 정렬하고, 셀 끝의 떠다니는 호출문을 제거하거나 올바른 들여쓰기로 정리. 노트북을 nbqa+flake8 또는 black로 정적 검사하여 구문/들여쓰기 오류를 사전 제거."
+    },
+    {
+      "title": "forest GeoDataFrame의 CRS를 가정·일부 셀에서만 명시해 누락 시 to_crs 실패 위험",
+      "severity": "중간",
+      "category": "좌표계/공간",
+      "evidence": "초기 CELL 0/CELL 1에서는 forest=gpd.GeoDataFrame(concat,...)에 crs를 지정하지 않아(line 93-94, 1316-1317) forest.crs가 None일 수 있고, 이때 point.to_crs(forest.crs)는 실패 또는 무변환. 이후 CELL 56/118/119에서야 crs=forest1.crs를 명시(line 1881,2106,2890). 51_*.shp의 .prj가 정확히 5179인지 검증하는 코드는 print(gdf.crs)뿐(line 88-89)이고 '5179 추정'에 의존.",
+      "fix": "로드 직후 assert forest.crs is not None and forest.crs.to_epsg()==5179로 명시 검증하고, 다르면 set_crs/to_crs로 정규화. concat 시 항상 crs=forest1.crs를 지정하고 두 입력의 crs 동일성도 검증."
+    }
+  ],
+  "summary": "이 노트북은 표면상 'GPS 기반 식재 수종 추천' 서비스를 표방하지만 실제로는 (1) 치명적 순환학습/데이터누수 구조다. make_priority/make_growth_suitability/make_pest_vulnerability가 입력 피처의 결정론적 if/else 함수로 라벨을 만든 뒤 정확히 같은 피처로 RandomForest/XGBoost를 학습·평가하므로, 보고된 정확도는 '규칙 암기' 수치일 뿐 예측력과 무관하다. (2) 코드가 실행조차 되지 않는 치명 버그가 다수다: aspect_dir 컬럼은 make_*와 features에서 쓰이지만 생성 코드가 없어 KeyError, aspect_to_direction()는 forest_ai_report에서 호출되지만 정의가 없어 NameError, CELL 13/96은 들여쓰기 오류로 실행 불가. (3) 좌표계가 전반적으로 망가져 있다. dem이 4326→5179로 전역 재바인딩되는데 get_forest_info와 streamlit은 5179 DEM의 dem.index(lon,lat)에 원시 위경도를 그대로 넘기고, 경계검사·nodata 검사 없이 numpy 인덱싱하여 음수 인덱스가 silent wrap으로 엉뚱한 픽셀값을 정상 고도처럼 반환한다. 경사/향도 4326 격자(도 단위)에서 np.gradient로 계산해 단위가 왜곡된다. (4) 제품 목표(심을 수종 추천)와 구현(forest.contains로 기존 임분 진단)이 근본적으로 불일치하며 추천 산출물·적지적수 로직이 전무하다. (5) 견고성·성능도 취약하다: bare except가 좌표계 버그를 NaN으로 은폐, 공간 인덱스(sindex) 없이 전수 contains/distance 스캔, streamlit 콜백마다 수백 MB shapefile·DEM 재로딩, 전역 가변 상태 의존으로 셀 실행 순서에 따라 결과가 비결정적이다. 권장 방향: ML 누수 구조를 제거하고 규칙엔진은 규칙대로 쓰거나 외생 라벨로 재설계, DEM/임상도를 단일 투영 CRS로 통일하고 모든 추출을 to_crs(dem.crs)+경계/ nodata 검증+rasterio.sample로 정규화, 누락 헬퍼(aspect_to_direction, aspect_dir 파이프라인) 구현, 공간 인덱스·캐싱 도입, 그리고 핵심인 식재 적지적수 추천 모듈을 신규 설계하라."
+}
