@@ -210,8 +210,12 @@ def _prepare_data_bundle(data_dir: str, url: str) -> None:
 
 
 _bundle_url = os.environ.get("FOREST_RECO_DATA_BUNDLE_URL")
+_bundle_error = None
 if _bundle_url:
-    _prepare_data_bundle(str(Settings().data_dir), _bundle_url)
+    try:
+        _prepare_data_bundle(str(Settings().data_dir), _bundle_url)
+    except Exception as exc:
+        _bundle_error = str(exc)
 
 _default_dir = Settings().data_dir
 _has_real = _real_data_exists(_default_dir)
@@ -252,6 +256,17 @@ st.caption(
     "배포된 https://... 주소에서는 LTE나 다른 와이파이에서도 접속할 수 있고, 카메라·위치 권한이 더 안정적으로 동작합니다. "
     "PC 로컬 주소(http://192.168...)로 테스트할 때만 브라우저 보안 제한이 생길 수 있습니다."
 )
+if _bundle_error:
+    st.warning(
+        "실데이터를 내려받지 못해 현재는 데모 데이터로 실행됩니다. "
+        "Streamlit Secrets의 FOREST_RECO_DATA_BUNDLE_URL 주소를 확인해 주세요."
+    )
+    with st.expander("실데이터 준비 오류 자세히 보기"):
+        st.code(_bundle_error)
+elif _bundle_url and not _has_real:
+    st.info("실데이터 주소는 설정되어 있지만 아직 실데이터 파일을 찾지 못했습니다. 앱을 재시작하면 다시 준비를 시도합니다.")
+elif _has_real:
+    st.success("실데이터가 준비되어 데스크탑과 같은 데이터 기준으로 실행 중입니다.")
 
 # ---------------------------------------------------------------------------
 # 1) 위치 입력
