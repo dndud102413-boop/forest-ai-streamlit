@@ -1,6 +1,8 @@
-"""Streamlit entrypoint wrapper.
+"""Streamlit Cloud entrypoint."""
+from __future__ import annotations
 
-Run from this folder with:
-    streamlit run app.py
-"""
-from app.streamlit_app import *  # noqa: F401,F403
+import runpy
+from pathlib import Path
+
+
+runpy.run_path(str(Path(__file__).parent / "app" / "streamlit_app.py"), run_name="__main__")
