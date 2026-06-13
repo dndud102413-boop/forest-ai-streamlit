@@ -5,9 +5,10 @@ mockdata.py — 합성 임상도(벡터) + DEM(래스터) 생성기
 구동·테스트하기 위한 합성 데이터. 실제 데이터의 스키마(FRTP_NM, KOFTR_NM,
 DMCLS_NM, AGCLS_NM, DNST_NM + 5179 폴리곤, 4326 DEM)를 동일하게 모사한다.
 
-강원권 전체에 가까운 범위(경도 127.0~129.7, 위도 37.0~38.75)를 가정한
-가상 지형을 만든다. 모바일 배포 데모에서 실제 GPS가 춘천 주변이 아니어도
-기능 테스트가 가능하도록 넓은 범위를 사용한다.
+전국 모바일 테스트가 가능하도록 남한 전체에 가까운 범위(경도 124.0~132.0,
+위도 33.0~39.5)를 가정한 가상 지형을 만든다. 실제 데이터가 없는 Streamlit
+Cloud 데모에서 휴대폰 GPS가 강원권 밖이어도 기능 테스트가 가능하도록 넓은
+범위를 사용한다.
 """
 from __future__ import annotations
 
@@ -18,8 +19,11 @@ import numpy as np
 
 from .config import CRS_KOREA_TM, CRS_WGS84
 
-# 합성 영역 (WGS84): 강원권 분석 안내 범위와 맞춘다.
-BBOX = (127.00, 37.00, 129.70, 38.75)  # (lon_min, lat_min, lon_max, lat_max)
+# 합성 데이터 구조가 바뀌면 이 값을 올린다. Cloud의 이전 임시 파일을 자동 갱신하기 위함.
+MOCK_VERSION = "2026-06-13-korea-demo-v1"
+
+# 합성 영역 (WGS84): 배포 데모는 전국 휴대폰 테스트가 되도록 넓게 잡는다.
+BBOX = (124.00, 33.00, 132.00, 39.50)  # (lon_min, lat_min, lon_max, lat_max)
 
 
 def _elevation_surface(lon: np.ndarray, lat: np.ndarray) -> np.ndarray:
@@ -40,7 +44,7 @@ def _elevation_surface(lon: np.ndarray, lat: np.ndarray) -> np.ndarray:
     return np.maximum(z, 0.0)
 
 
-def make_dem(path: str | Path, res_deg: float = 0.006) -> Path:
+def make_dem(path: str | Path, res_deg: float = 0.015) -> Path:
     """4326 DEM GeoTIFF 생성 (원본 gangwon_dem.tif와 동일 좌표계)."""
     import rasterio
     from rasterio.transform import from_origin
@@ -90,7 +94,7 @@ def _species_for(elev: float, rng) -> tuple[str, str]:
     return frtp, str(rng.choice(pool))
 
 
-def make_forest(path: str | Path, cell_m: float = 2000.0, seed: int = 42) -> Path:
+def make_forest(path: str | Path, cell_m: float = 10000.0, seed: int = 42) -> Path:
     """5179 임상도 폴리곤 shapefile 생성 (격자형 임분 모사)."""
     import geopandas as gpd
     from shapely.geometry import box
@@ -143,8 +147,11 @@ def ensure_mock_dataset(data_dir: str | Path) -> dict:
     data_dir = Path(data_dir)
     dem = data_dir / "gangwon_dem.tif"
     shp = data_dir / "51_1.shp"
-    if not dem.exists():
+    marker = data_dir / ".mock_version"
+    needs_refresh = marker.read_text(encoding="utf-8").strip() != MOCK_VERSION if marker.exists() else True
+    if needs_refresh or not dem.exists():
         make_dem(dem)
-    if not shp.exists():
+    if needs_refresh or not shp.exists():
         make_forest(shp)
+    marker.write_text(MOCK_VERSION, encoding="utf-8")
     return {"dem": dem, "forest": [shp]}
