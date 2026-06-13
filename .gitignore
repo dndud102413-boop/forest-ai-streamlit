@@ -16,6 +16,7 @@ data_small/
 *.cpg
 *.prj
 *.gpkg
+!forest_reco/data/
 !forest_reco/data/species_db.json
 !data/stations.csv
 !data/climate_map_*.png

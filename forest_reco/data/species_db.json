@@ -1,0 +1,946 @@
+{
+  "species": [
+    {
+      "korean_name": "소나무",
+      "scientific_name": "Pinus densiflora",
+      "leaf_type": "침엽수",
+      "climate_zones": [
+        "온대남부",
+        "온대중부",
+        "온대북부"
+      ],
+      "elev_min_m": 0,
+      "elev_max_m": 1300,
+      "slope_pref": "전지형",
+      "aspect_pref": [
+        "남향",
+        "서향"
+      ],
+      "drought_tolerance": "상",
+      "cold_hardiness": "상",
+      "growth_rate": "중간",
+      "carbon_seq": "중",
+      "purposes": [
+        "용재",
+        "조경경관",
+        "사방방재"
+      ],
+      "pest_notes": "소나무재선충병(매개 솔수염하늘소), 솔잎혹파리, 솔껍질깍지벌레",
+      "notes": "건조 척박한 능선·남사면 양수. 비옥습윤지에서는 활엽수와 경쟁에 밀림. 재선충 발생지 식재 신중."
+    },
+    {
+      "korean_name": "잣나무",
+      "scientific_name": "Pinus koraiensis",
+      "leaf_type": "침엽수",
+      "climate_zones": [
+        "온대중부",
+        "온대북부"
+      ],
+      "elev_min_m": 300,
+      "elev_max_m": 1900,
+      "slope_pref": "중경사",
+      "aspect_pref": [
+        "북향",
+        "동향"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "상",
+      "growth_rate": "중간",
+      "carbon_seq": "상",
+      "purposes": [
+        "용재",
+        "특용(열매/수액)",
+        "탄소흡수"
+      ],
+      "pest_notes": "잣나무넓적잎벌, 푸사리움가지마름병, 잣송이 채취 관련 피해",
+      "notes": "한랭 다습한 중고산 북사면 적지. 어릴 때 음수성으로 내음 가능. 저지대 온난건조지는 부적합."
+    },
+    {
+      "korean_name": "곰솔(해송)",
+      "scientific_name": "Pinus thunbergii",
+      "leaf_type": "침엽수",
+      "climate_zones": [
+        "난대",
+        "온대남부"
+      ],
+      "elev_min_m": 0,
+      "elev_max_m": 600,
+      "slope_pref": "전지형",
+      "aspect_pref": [
+        "남향",
+        "서향",
+        "무관"
+      ],
+      "drought_tolerance": "상",
+      "cold_hardiness": "중",
+      "growth_rate": "중간",
+      "carbon_seq": "중",
+      "purposes": [
+        "사방방재",
+        "조경경관",
+        "내공해도시"
+      ],
+      "pest_notes": "소나무재선충병, 솔수염하늘소, 솔껍질깍지벌레",
+      "notes": "내염성 강해 해안방풍·사구고정 핵심수종. 내한성 약해 중부내륙 동해 우려."
+    },
+    {
+      "korean_name": "리기다소나무",
+      "scientific_name": "Pinus rigida",
+      "leaf_type": "침엽수",
+      "climate_zones": [
+        "온대남부",
+        "온대중부"
+      ],
+      "elev_min_m": 0,
+      "elev_max_m": 800,
+      "slope_pref": "전지형",
+      "aspect_pref": [
+        "남향",
+        "서향",
+        "무관"
+      ],
+      "drought_tolerance": "상",
+      "cold_hardiness": "상",
+      "growth_rate": "속성",
+      "carbon_seq": "중",
+      "purposes": [
+        "사방방재",
+        "용재"
+      ],
+      "pest_notes": "비교적 병해충 강건, 푸사리움가지마름병 일부",
+      "notes": "척박 황폐지 녹화용 도입종. 재질 불량으로 신규 조림 비중 감소, 우량수종 갱신 대상."
+    },
+    {
+      "korean_name": "일본잎갈나무(낙엽송)",
+      "scientific_name": "Larix kaempferi",
+      "leaf_type": "침엽수",
+      "climate_zones": [
+        "온대중부",
+        "온대북부"
+      ],
+      "elev_min_m": 300,
+      "elev_max_m": 1300,
+      "slope_pref": "중경사",
+      "aspect_pref": [
+        "북향",
+        "동향",
+        "무관"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "상",
+      "growth_rate": "속성",
+      "carbon_seq": "상",
+      "purposes": [
+        "용재",
+        "탄소흡수"
+      ],
+      "pest_notes": "낙엽송잎벌, 낙엽송가지끝마름병, 그을음잎마름병",
+      "notes": "서늘 다습한 중고지대 양수 속성 용재수종. 건조 남사면·저지대 온난지 생장 불량."
+    },
+    {
+      "korean_name": "편백",
+      "scientific_name": "Chamaecyparis obtusa",
+      "leaf_type": "침엽수",
+      "climate_zones": [
+        "난대",
+        "온대남부"
+      ],
+      "elev_min_m": 0,
+      "elev_max_m": 700,
+      "slope_pref": "완경사",
+      "aspect_pref": [
+        "북향",
+        "동향",
+        "무관"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "중",
+      "growth_rate": "중간",
+      "carbon_seq": "상",
+      "purposes": [
+        "용재",
+        "조경경관",
+        "탄소흡수"
+      ],
+      "pest_notes": "편백·삼나무 갈색무늬병, 측백하늘소, 비교적 강건",
+      "notes": "온난 습윤한 남부 산록 적지. 피톤치드 치유의 숲 인기. 중부 이북 한해 위험."
+    },
+    {
+      "korean_name": "삼나무",
+      "scientific_name": "Cryptomeria japonica",
+      "leaf_type": "침엽수",
+      "climate_zones": [
+        "난대",
+        "온대남부"
+      ],
+      "elev_min_m": 0,
+      "elev_max_m": 600,
+      "slope_pref": "완경사",
+      "aspect_pref": [
+        "북향",
+        "동향"
+      ],
+      "drought_tolerance": "하",
+      "cold_hardiness": "하",
+      "growth_rate": "속성",
+      "carbon_seq": "상",
+      "purposes": [
+        "용재",
+        "조경경관",
+        "탄소흡수"
+      ],
+      "pest_notes": "삼나무붉은마름병, 잎마름병, 태풍 풍도해 취약",
+      "notes": "제주·남해안 토심 깊고 습윤한 곡간부 적지. 내건·내한 약해 분포 제한, 화분증 민원 고려."
+    },
+    {
+      "korean_name": "메타세쿼이아",
+      "scientific_name": "Metasequoia glyptostroboides",
+      "leaf_type": "침엽수",
+      "climate_zones": [
+        "온대남부",
+        "온대중부"
+      ],
+      "elev_min_m": 0,
+      "elev_max_m": 500,
+      "slope_pref": "완경사",
+      "aspect_pref": [
+        "무관"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "상",
+      "growth_rate": "속성",
+      "carbon_seq": "상",
+      "purposes": [
+        "조경경관",
+        "탄소흡수",
+        "용재"
+      ],
+      "pest_notes": "병해충 매우 적음, 강건",
+      "notes": "습윤한 하천변·가로수 경관수종. 토심 깊은 충적지 최적. 산지 일반 조림보다 경관·녹화용."
+    },
+    {
+      "korean_name": "상수리나무",
+      "scientific_name": "Quercus acutissima",
+      "leaf_type": "낙엽활엽수",
+      "climate_zones": [
+        "난대",
+        "온대남부",
+        "온대중부"
+      ],
+      "elev_min_m": 0,
+      "elev_max_m": 800,
+      "slope_pref": "완경사",
+      "aspect_pref": [
+        "남향",
+        "서향",
+        "무관"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "중",
+      "growth_rate": "중간",
+      "carbon_seq": "상",
+      "purposes": [
+        "용재",
+        "특용(열매/수액)",
+        "생물다양성"
+      ],
+      "pest_notes": "참나무시들음병(광릉긴나무좀), 흰가루병",
+      "notes": "저지대 산록·마을 주변 비옥지 양수. 도토리 생산·표고자목. 건조한 입지에도 비교적 적응."
+    },
+    {
+      "korean_name": "굴참나무",
+      "scientific_name": "Quercus variabilis",
+      "leaf_type": "낙엽활엽수",
+      "climate_zones": [
+        "난대",
+        "온대남부",
+        "온대중부"
+      ],
+      "elev_min_m": 0,
+      "elev_max_m": 1000,
+      "slope_pref": "중경사",
+      "aspect_pref": [
+        "남향",
+        "서향"
+      ],
+      "drought_tolerance": "상",
+      "cold_hardiness": "중",
+      "growth_rate": "중간",
+      "carbon_seq": "상",
+      "purposes": [
+        "용재",
+        "특용(열매/수액)",
+        "생물다양성"
+      ],
+      "pest_notes": "참나무시들음병, 흰가루병",
+      "notes": "건조 척박한 남사면 능선부에도 강한 양수. 코르크층 발달. 코르크·표고자목 이용."
+    },
+    {
+      "korean_name": "신갈나무",
+      "scientific_name": "Quercus mongolica",
+      "leaf_type": "낙엽활엽수",
+      "climate_zones": [
+        "온대남부",
+        "온대중부",
+        "온대북부"
+      ],
+      "elev_min_m": 200,
+      "elev_max_m": 1700,
+      "slope_pref": "중경사",
+      "aspect_pref": [
+        "무관"
+      ],
+      "drought_tolerance": "상",
+      "cold_hardiness": "상",
+      "growth_rate": "중간",
+      "carbon_seq": "상",
+      "purposes": [
+        "생물다양성",
+        "용재",
+        "탄소흡수"
+      ],
+      "pest_notes": "참나무시들음병(피해 심함), 흰가루병",
+      "notes": "고지대 능선·정상부 우점 극상림 구성종. 내한·내건 강함. 산림 생물다양성 핵심."
+    },
+    {
+      "korean_name": "졸참나무",
+      "scientific_name": "Quercus serrata",
+      "leaf_type": "낙엽활엽수",
+      "climate_zones": [
+        "난대",
+        "온대남부",
+        "온대중부"
+      ],
+      "elev_min_m": 0,
+      "elev_max_m": 1000,
+      "slope_pref": "중경사",
+      "aspect_pref": [
+        "동향",
+        "북향",
+        "무관"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "중",
+      "growth_rate": "중간",
+      "carbon_seq": "상",
+      "purposes": [
+        "용재",
+        "생물다양성",
+        "특용(열매/수액)"
+      ],
+      "pest_notes": "참나무시들음병, 흰가루병",
+      "notes": "산록~산복의 비옥 적윤한 입지 선호. 참나무류 중 잎·열매 작음. 양질 용재 가능."
+    },
+    {
+      "korean_name": "갈참나무",
+      "scientific_name": "Quercus aliena",
+      "leaf_type": "낙엽활엽수",
+      "climate_zones": [
+        "난대",
+        "온대남부",
+        "온대중부"
+      ],
+      "elev_min_m": 0,
+      "elev_max_m": 900,
+      "slope_pref": "완경사",
+      "aspect_pref": [
+        "동향",
+        "북향",
+        "무관"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "중",
+      "growth_rate": "중간",
+      "carbon_seq": "상",
+      "purposes": [
+        "용재",
+        "생물다양성",
+        "특용(열매/수액)"
+      ],
+      "pest_notes": "참나무시들음병, 흰가루병",
+      "notes": "토심 깊고 비옥한 산록 계곡부 선호. 참나무류 중 양료 요구 높음. 도토리 대형."
+    },
+    {
+      "korean_name": "자작나무",
+      "scientific_name": "Betula pendula",
+      "leaf_type": "낙엽활엽수",
+      "climate_zones": [
+        "온대중부",
+        "온대북부",
+        "한대(아고산)"
+      ],
+      "elev_min_m": 400,
+      "elev_max_m": 1800,
+      "slope_pref": "중경사",
+      "aspect_pref": [
+        "북향",
+        "동향"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "상",
+      "growth_rate": "속성",
+      "carbon_seq": "중",
+      "purposes": [
+        "조경경관",
+        "용재",
+        "특용(열매/수액)"
+      ],
+      "pest_notes": "자작나무얼룩무늬병, 박쥐나방, 더위·건조 스트레스에 약함",
+      "notes": "서늘한 고위도·고지대 양수 선구수종. 백색 수피 경관 우수. 남부 저지대 온난지 생육 부진."
+    },
+    {
+      "korean_name": "거제수나무",
+      "scientific_name": "Betula costata",
+      "leaf_type": "낙엽활엽수",
+      "climate_zones": [
+        "온대중부",
+        "온대북부",
+        "한대(아고산)"
+      ],
+      "elev_min_m": 600,
+      "elev_max_m": 1700,
+      "slope_pref": "중경사",
+      "aspect_pref": [
+        "북향",
+        "동향"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "상",
+      "growth_rate": "중간",
+      "carbon_seq": "중",
+      "purposes": [
+        "용재",
+        "특용(열매/수액)",
+        "생물다양성"
+      ],
+      "pest_notes": "비교적 병해충 적음",
+      "notes": "고산 활엽수림대 자생. 수액(곡우물) 채취. 서늘 습윤한 비옥 토양 선호, 저지대 부적합."
+    },
+    {
+      "korean_name": "물푸레나무",
+      "scientific_name": "Fraxinus rhynchophylla",
+      "leaf_type": "낙엽활엽수",
+      "climate_zones": [
+        "온대남부",
+        "온대중부",
+        "온대북부"
+      ],
+      "elev_min_m": 100,
+      "elev_max_m": 1200,
+      "slope_pref": "완경사",
+      "aspect_pref": [
+        "동향",
+        "북향",
+        "무관"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "상",
+      "growth_rate": "중간",
+      "carbon_seq": "중",
+      "purposes": [
+        "용재",
+        "조경경관",
+        "생물다양성"
+      ],
+      "pest_notes": "흰불나방, 깍지벌레, 미국흰불나방",
+      "notes": "계곡부·산복의 적윤 비옥지 선호. 운동기구·가구재 우량 용재. 내한성 우수."
+    },
+    {
+      "korean_name": "들메나무",
+      "scientific_name": "Fraxinus mandshurica",
+      "leaf_type": "낙엽활엽수",
+      "climate_zones": [
+        "온대중부",
+        "온대북부",
+        "한대(아고산)"
+      ],
+      "elev_min_m": 300,
+      "elev_max_m": 1500,
+      "slope_pref": "완경사",
+      "aspect_pref": [
+        "북향",
+        "동향"
+      ],
+      "drought_tolerance": "하",
+      "cold_hardiness": "상",
+      "growth_rate": "중간",
+      "carbon_seq": "상",
+      "purposes": [
+        "용재",
+        "생물다양성",
+        "탄소흡수"
+      ],
+      "pest_notes": "흰불나방, 깍지벌레",
+      "notes": "계곡·하천변 토심 깊고 습윤한 충적지 적지. 내건성 약해 건조 사면 부적합. 대경 용재."
+    },
+    {
+      "korean_name": "느티나무",
+      "scientific_name": "Zelkova serrata",
+      "leaf_type": "낙엽활엽수",
+      "climate_zones": [
+        "난대",
+        "온대남부",
+        "온대중부"
+      ],
+      "elev_min_m": 0,
+      "elev_max_m": 700,
+      "slope_pref": "완경사",
+      "aspect_pref": [
+        "무관"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "상",
+      "growth_rate": "중간",
+      "carbon_seq": "상",
+      "purposes": [
+        "조경경관",
+        "용재",
+        "내공해도시"
+      ],
+      "pest_notes": "흰불나방, 진딧물, 갈색무늬병",
+      "notes": "마을 정자목·가로수 대표 장수 경관수. 토심 깊고 비옥 적윤한 산록 최적. 고급 가구재."
+    },
+    {
+      "korean_name": "고로쇠나무",
+      "scientific_name": "Acer pictum subsp. mono",
+      "leaf_type": "낙엽활엽수",
+      "climate_zones": [
+        "온대남부",
+        "온대중부",
+        "온대북부"
+      ],
+      "elev_min_m": 200,
+      "elev_max_m": 1500,
+      "slope_pref": "중경사",
+      "aspect_pref": [
+        "북향",
+        "동향",
+        "무관"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "상",
+      "growth_rate": "중간",
+      "carbon_seq": "중",
+      "purposes": [
+        "특용(열매/수액)",
+        "조경경관",
+        "용재"
+      ],
+      "pest_notes": "흰가루병, 진딧물, 비교적 강건",
+      "notes": "산복~계곡의 비옥 적윤지 음수성. 수액(고로쇠물) 채취 특용수. 단풍 경관 우수."
+    },
+    {
+      "korean_name": "음나무(엄나무)",
+      "scientific_name": "Kalopanax septemlobus",
+      "leaf_type": "낙엽활엽수",
+      "climate_zones": [
+        "온대남부",
+        "온대중부",
+        "온대북부"
+      ],
+      "elev_min_m": 100,
+      "elev_max_m": 1300,
+      "slope_pref": "완경사",
+      "aspect_pref": [
+        "동향",
+        "북향",
+        "무관"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "상",
+      "growth_rate": "중간",
+      "carbon_seq": "중",
+      "purposes": [
+        "특용(열매/수액)",
+        "용재",
+        "조경경관"
+      ],
+      "pest_notes": "흰불나방, 깍지벌레",
+      "notes": "비옥 적윤한 산록·계곡부 선호. 새순(개두릅) 식용·약용 특용수. 줄기 가시 발달."
+    },
+    {
+      "korean_name": "백합나무(튤립나무)",
+      "scientific_name": "Liriodendron tulipifera",
+      "leaf_type": "낙엽활엽수",
+      "climate_zones": [
+        "온대남부",
+        "온대중부"
+      ],
+      "elev_min_m": 0,
+      "elev_max_m": 700,
+      "slope_pref": "완경사",
+      "aspect_pref": [
+        "무관"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "중",
+      "growth_rate": "속성",
+      "carbon_seq": "상",
+      "purposes": [
+        "탄소흡수",
+        "용재",
+        "조경경관",
+        "밀원(꿀)"
+      ],
+      "pest_notes": "병해충 매우 적음, 강건",
+      "notes": "속성·다수확 탄소흡수 권장수종. 토심 깊고 비옥 적윤한 산록 최적. 밀원·가로수로도 우수."
+    },
+    {
+      "korean_name": "산벚나무",
+      "scientific_name": "Prunus sargentii",
+      "leaf_type": "낙엽활엽수",
+      "climate_zones": [
+        "온대남부",
+        "온대중부",
+        "온대북부"
+      ],
+      "elev_min_m": 100,
+      "elev_max_m": 1500,
+      "slope_pref": "중경사",
+      "aspect_pref": [
+        "남향",
+        "동향",
+        "무관"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "상",
+      "growth_rate": "속성",
+      "carbon_seq": "중",
+      "purposes": [
+        "조경경관",
+        "밀원(꿀)",
+        "생물다양성"
+      ],
+      "pest_notes": "벚나무사향하늘소, 빗자루병, 흰불나방",
+      "notes": "산지 자생 벚나무로 경관·밀원 우수. 양수성, 비교적 다양한 입지 적응. 단명성 유의."
+    },
+    {
+      "korean_name": "이팝나무",
+      "scientific_name": "Chionanthus retusus",
+      "leaf_type": "낙엽활엽수",
+      "climate_zones": [
+        "난대",
+        "온대남부",
+        "온대중부"
+      ],
+      "elev_min_m": 0,
+      "elev_max_m": 600,
+      "slope_pref": "완경사",
+      "aspect_pref": [
+        "남향",
+        "동향",
+        "무관"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "중",
+      "growth_rate": "완만",
+      "carbon_seq": "중",
+      "purposes": [
+        "조경경관",
+        "내공해도시",
+        "밀원(꿀)"
+      ],
+      "pest_notes": "깍지벌레, 흰가루병, 비교적 강건",
+      "notes": "가로수·공원 경관수. 토심 깊고 습윤한 곳 선호하나 건조·공해 비교적 견딤. 흰꽃 경관 우수."
+    },
+    {
+      "korean_name": "붉가시나무",
+      "scientific_name": "Quercus acuta",
+      "leaf_type": "상록활엽수",
+      "climate_zones": [
+        "난대"
+      ],
+      "elev_min_m": 0,
+      "elev_max_m": 700,
+      "slope_pref": "중경사",
+      "aspect_pref": [
+        "남향",
+        "동향",
+        "무관"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "하",
+      "growth_rate": "중간",
+      "carbon_seq": "상",
+      "purposes": [
+        "용재",
+        "조경경관",
+        "생물다양성"
+      ],
+      "pest_notes": "흰가루병, 깍지벌레",
+      "notes": "난대 상록활엽수림 핵심 가시나무류. 제주·남해안 적지. 내한성 약해 분포 남부 한정. 기후변화로 북상 잠재."
+    },
+    {
+      "korean_name": "종가시나무",
+      "scientific_name": "Quercus glauca",
+      "leaf_type": "상록활엽수",
+      "climate_zones": [
+        "난대"
+      ],
+      "elev_min_m": 0,
+      "elev_max_m": 600,
+      "slope_pref": "중경사",
+      "aspect_pref": [
+        "남향",
+        "동향",
+        "무관"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "하",
+      "growth_rate": "중간",
+      "carbon_seq": "상",
+      "purposes": [
+        "조경경관",
+        "내공해도시",
+        "생물다양성"
+      ],
+      "pest_notes": "흰가루병, 깍지벌레, 그을음병",
+      "notes": "난대림 상록 가시나무류. 맹아력 강해 방풍·생울타리. 제주·남해안 식재, 내염성 양호."
+    },
+    {
+      "korean_name": "동백나무",
+      "scientific_name": "Camellia japonica",
+      "leaf_type": "상록활엽수",
+      "climate_zones": [
+        "난대",
+        "온대남부"
+      ],
+      "elev_min_m": 0,
+      "elev_max_m": 500,
+      "slope_pref": "완경사",
+      "aspect_pref": [
+        "북향",
+        "동향",
+        "무관"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "하",
+      "growth_rate": "완만",
+      "carbon_seq": "중",
+      "purposes": [
+        "조경경관",
+        "밀원(꿀)",
+        "특용(열매/수액)"
+      ],
+      "pest_notes": "차독나방, 깍지벌레, 그을음병",
+      "notes": "남해안·도서 상록 경관·밀원수. 동백기름 특용. 내음성 강하나 내한성 약해 중부 노지 불가."
+    },
+    {
+      "korean_name": "후박나무",
+      "scientific_name": "Machilus thunbergii",
+      "leaf_type": "상록활엽수",
+      "climate_zones": [
+        "난대"
+      ],
+      "elev_min_m": 0,
+      "elev_max_m": 500,
+      "slope_pref": "완경사",
+      "aspect_pref": [
+        "동향",
+        "북향",
+        "무관"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "하",
+      "growth_rate": "중간",
+      "carbon_seq": "상",
+      "purposes": [
+        "조경경관",
+        "용재",
+        "내공해도시"
+      ],
+      "pest_notes": "깍지벌레, 그을음병, 비교적 강건",
+      "notes": "난대림 대표 상록교목. 해안 방풍·내염성 우수. 토심 깊은 습윤지 선호, 내한성 약함."
+    },
+    {
+      "korean_name": "황칠나무",
+      "scientific_name": "Dendropanax morbiferus",
+      "leaf_type": "상록활엽수",
+      "climate_zones": [
+        "난대"
+      ],
+      "elev_min_m": 0,
+      "elev_max_m": 400,
+      "slope_pref": "완경사",
+      "aspect_pref": [
+        "동향",
+        "북향",
+        "무관"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "하",
+      "growth_rate": "중간",
+      "carbon_seq": "중",
+      "purposes": [
+        "특용(열매/수액)",
+        "조경경관",
+        "생물다양성"
+      ],
+      "pest_notes": "깍지벌레, 비교적 강건",
+      "notes": "난대 특산 약용·도료(황칠) 특용수. 내음성 강함. 제주·남해안 한정, 서리·동해 취약."
+    },
+    {
+      "korean_name": "비자나무",
+      "scientific_name": "Torreya nucifera",
+      "leaf_type": "침엽수",
+      "climate_zones": [
+        "난대",
+        "온대남부"
+      ],
+      "elev_min_m": 0,
+      "elev_max_m": 700,
+      "slope_pref": "완경사",
+      "aspect_pref": [
+        "북향",
+        "동향"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "하",
+      "growth_rate": "완만",
+      "carbon_seq": "중",
+      "purposes": [
+        "특용(열매/수액)",
+        "용재",
+        "조경경관"
+      ],
+      "pest_notes": "깍지벌레, 비교적 강건",
+      "notes": "난대 상록침엽 장수수종. 종자(비자) 약용·식용. 음수성 강하고 생장 완만, 토심 깊은 습윤지 적지."
+    },
+    {
+      "korean_name": "구상나무",
+      "scientific_name": "Abies koreana",
+      "leaf_type": "침엽수",
+      "climate_zones": [
+        "한대(아고산)"
+      ],
+      "elev_min_m": 1000,
+      "elev_max_m": 1950,
+      "slope_pref": "급경사무관",
+      "aspect_pref": [
+        "북향",
+        "동향"
+      ],
+      "drought_tolerance": "하",
+      "cold_hardiness": "상",
+      "growth_rate": "완만",
+      "carbon_seq": "하",
+      "purposes": [
+        "조경경관",
+        "생물다양성",
+        "탄소흡수"
+      ],
+      "pest_notes": "기후변화 고온건조 스트레스 집단고사, 좀, 잎녹병",
+      "notes": "한국 특산 아고산 침엽수, 기후변화 쇠퇴 멸종위기. 한라산·지리산 고산 한정. 저지대 식재 부적합, 복원·보전 대상."
+    },
+    {
+      "korean_name": "분비나무",
+      "scientific_name": "Abies nephrolepis",
+      "leaf_type": "침엽수",
+      "climate_zones": [
+        "한대(아고산)"
+      ],
+      "elev_min_m": 1000,
+      "elev_max_m": 2000,
+      "slope_pref": "급경사무관",
+      "aspect_pref": [
+        "북향",
+        "동향"
+      ],
+      "drought_tolerance": "하",
+      "cold_hardiness": "상",
+      "growth_rate": "완만",
+      "carbon_seq": "하",
+      "purposes": [
+        "생물다양성",
+        "조경경관",
+        "탄소흡수"
+      ],
+      "pest_notes": "기후변화 고사, 잎녹병",
+      "notes": "북부·아고산대 자생 전나무속. 서늘 습윤한 고지대 적지. 온난화 취약, 저지대 부적합, 보전 가치 높음."
+    },
+    {
+      "korean_name": "전나무",
+      "scientific_name": "Abies holophylla",
+      "leaf_type": "침엽수",
+      "climate_zones": [
+        "온대중부",
+        "온대북부",
+        "한대(아고산)"
+      ],
+      "elev_min_m": 300,
+      "elev_max_m": 1500,
+      "slope_pref": "중경사",
+      "aspect_pref": [
+        "북향",
+        "동향"
+      ],
+      "drought_tolerance": "하",
+      "cold_hardiness": "상",
+      "growth_rate": "완만",
+      "carbon_seq": "중",
+      "purposes": [
+        "조경경관",
+        "용재",
+        "탄소흡수"
+      ],
+      "pest_notes": "잎녹병, 가지마름병, 어릴 때 서리해",
+      "notes": "음수성 강한 내음수종, 사찰림·고산 계곡부 적지. 토심 깊고 습윤한 곳 선호. 건조 양지 부적합."
+    },
+    {
+      "korean_name": "가래나무",
+      "scientific_name": "Juglans mandshurica",
+      "leaf_type": "낙엽활엽수",
+      "climate_zones": [
+        "온대중부",
+        "온대북부"
+      ],
+      "elev_min_m": 200,
+      "elev_max_m": 1200,
+      "slope_pref": "완경사",
+      "aspect_pref": [
+        "북향",
+        "동향",
+        "무관"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "상",
+      "growth_rate": "중간",
+      "carbon_seq": "중",
+      "purposes": [
+        "특용(열매/수액)",
+        "용재",
+        "생물다양성"
+      ],
+      "pest_notes": "호두나무잎벌레, 탄저병",
+      "notes": "계곡부·산록 토심 깊은 비옥 습윤지 적지. 견과 특용·고급 용재. 타감작용으로 하부식생 억제."
+    },
+    {
+      "korean_name": "오리나무",
+      "scientific_name": "Alnus japonica",
+      "leaf_type": "낙엽활엽수",
+      "climate_zones": [
+        "난대",
+        "온대남부",
+        "온대중부"
+      ],
+      "elev_min_m": 0,
+      "elev_max_m": 900,
+      "slope_pref": "완경사",
+      "aspect_pref": [
+        "무관"
+      ],
+      "drought_tolerance": "중",
+      "cold_hardiness": "상",
+      "growth_rate": "속성",
+      "carbon_seq": "중",
+      "purposes": [
+        "사방방재",
+        "탄소흡수",
+        "생물다양성"
+      ],
+      "pest_notes": "오리나무잎벌레, 비교적 강건",
+      "notes": "질소고정 선구·사방수종. 습지·하천변·황폐지 토양개량에 유리. 속성으로 척박지 녹화 우수."
+    }
+  ],
+  "sourcing_notes": "출처 및 불확실성 표기: 본 데이터는 산림청 '적지적수 가이드라인', 국립산림과학원 주요 조림수종 매뉴얼, 국가표준식물목록(KPNI) 및 한국 산림생태 일반 지식에 근거해 작성했으며, 별도 외부 문헌을 실시간 조회하지 않고 도메인 지식으로 정리했다(보수적 합리 범위). 학명은 KPNI/현행 분류 기준(예: 고로쇠나무 Acer pictum subsp. mono, 자작나무는 국내 조림에 일본·유럽계 Betula pendula/platyphylla 혼용)을 따랐다. 고도 범위(elev_min/max)는 자생·식재 가능 범위를 폭넓게 잡은 추정치로, 위도·지역(남부/중부/북부)에 따라 100~300m 이상 변동 가능하며 절대 한계가 아니다. 탄소흡수능(carbon_seq)은 단위면적당 바이오매스 생장량·재적생장 기준의 상대평가로, 백합나무·낙엽송·편백·삼나무·메타세쿼이아 등 속성·대경 수종을 '상', 구상/분비 등 완만생장 아고산수종을 '하'로 분류했다. 내건성·내한성·생장속도는 현장 경험적 상대등급이다. climate_zones는 난대(상록활엽수림대, 대략 연평균 14°C 이상 남해안·제주), 온대남부/중부/북부, 한대(아고산) 구분을 적용했다. 병해충(pest_notes)은 대표적 주요 피해만 기재했고 지역·연도별 발생 편차가 크다. 특히 소나무재선충병은 현재 전국 확산세이므로 소나무·곰솔·잣나무 식재 시 발생지역 여부를 반드시 별도 확인해야 한다. 구상나무·분비나무·가문비류 등 아고산 침엽수는 기후변화로 집단고사가 진행 중이어 신규 조림보다 보전·복원 관점으로 접근해야 한다는 점을 강조한다. 사용자가 요청한 '거제수나무'와 '자작나무'는 중복 언급되어 자작나무 1종으로 통합하고, 보완 가치가 높은 전나무·가래나무·오리나무를 추가하여 총 35종을 구성했다. 입지 판정 시에는 본 표를 1차 스크리닝으로 활용하고, 실제 식재는 해당 임지의 토양 토심·토성·습윤도(지위지수), 풍해·동해 위험, 종자/조림계획구역 규정을 현지 조사로 재확인할 것을 권장한다."
+}
