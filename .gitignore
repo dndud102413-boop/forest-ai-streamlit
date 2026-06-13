@@ -9,6 +9,7 @@ __pycache__/
 # 생성/대용량 데이터 (실데이터·합성데이터는 버전관리 제외)
 data/
 data_small/
+data_bundle/
 *.tif
 *.shp
 *.dbf
