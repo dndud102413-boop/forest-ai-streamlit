@@ -170,9 +170,17 @@ def get_sources(use_mock: bool, data_dir: str | None) -> DataSources:
 # 사이드바: 설정
 # ---------------------------------------------------------------------------
 def _real_data_exists(d: Path) -> bool:
-    """실데이터(임상도/DEM)가 폴더에 있으면 True — 있으면 실데이터 모드를 기본값으로."""
-    return any((d / f).exists() for f in
-               ("gangwon_forest_light.gpkg", "gangwon_dem.tif", "51_1.shp"))
+    """실데이터가 충분히 있을 때만 True.
+
+    Cloud 데모 모드는 51_1.shp와 gangwon_dem.tif를 자동 생성한다. 그 두 파일만 보고
+    실데이터로 판단하면 다음 실행에서 51_2.shp를 찾다가 데이터 소스 오류가 난다.
+    """
+    if (d / ".mock_version").exists():
+        return False
+    has_dem = (d / "gangwon_dem.tif").exists()
+    has_light_forest = (d / "gangwon_forest_light.gpkg").exists()
+    has_full_shp_pair = (d / "51_1.shp").exists() and (d / "51_2.shp").exists()
+    return has_dem and (has_light_forest or has_full_shp_pair)
 
 
 _default_dir = Settings().data_dir
