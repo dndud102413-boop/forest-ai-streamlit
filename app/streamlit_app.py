@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import os
 import sys
+import json
 from html import escape as html_escape
 from pathlib import Path
 
@@ -34,6 +35,16 @@ from forest_reco.validation import evaluate_validation  # noqa: E402
 
 st.set_page_config(page_title="산림 수종 추천 AI", page_icon="🌲",
                    layout="centered", initial_sidebar_state="collapsed")
+
+for _secret_key in ("GEMINI_API_KEY", "FOREST_RECO_DATA_BUNDLE_URL"):
+    try:
+        if _secret_key in st.secrets and not os.environ.get(_secret_key):
+            os.environ[_secret_key] = str(st.secrets[_secret_key])
+    except Exception:
+        pass
+
+if os.environ.get("FOREST_RECO_DATA_BUNDLE_URL") and not os.environ.get("FOREST_RECO_DATA_DIR"):
+    os.environ["FOREST_RECO_DATA_DIR"] = str(Path.home() / ".cache" / "forest_reco_data")
 
 # ---------------------------------------------------------------------------
 # 모바일 반응형 스타일
@@ -150,6 +161,14 @@ def _score_label(score: int | float | None) -> tuple[str, str]:
     return "낮음", "badge-warn"
 
 
+def _reference_sdm_report() -> dict:
+    path = ROOT / "forest_reco" / "data" / "sdm_report_current.json"
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
 # ---------------------------------------------------------------------------
 # 데이터 소스 (1회 로딩 캐시)
 # ---------------------------------------------------------------------------
@@ -183,8 +202,20 @@ def _real_data_exists(d: Path) -> bool:
     return has_dem and (has_light_forest or has_full_shp_pair)
 
 
+@st.cache_resource(show_spinner="배포용 실데이터를 준비하는 중입니다...")
+def _prepare_data_bundle(data_dir: str, url: str) -> None:
+    from forest_reco.cloud_data import ensure_data_bundle
+
+    ensure_data_bundle(Path(data_dir), url)
+
+
+_bundle_url = os.environ.get("FOREST_RECO_DATA_BUNDLE_URL")
+if _bundle_url:
+    _prepare_data_bundle(str(Settings().data_dir), _bundle_url)
+
 _default_dir = Settings().data_dir
 _has_real = _real_data_exists(_default_dir)
+_ref_sdm = _reference_sdm_report()
 
 with st.sidebar:
     st.header("⚙️ 설정")
@@ -616,6 +647,14 @@ if res is not None:
                    f"(희귀 수종은 지식기반·인접 임분 근거로 보완)")
     else:
         st.caption("📐 지식기반 적지적수 점수로 추천(ML 미사용 또는 데이터 부족)")
+    if use_mock and _ref_sdm:
+        ref_top3 = _ref_sdm.get("top3_accuracy")
+        ref_top3_txt = f"{ref_top3:.0%}" if isinstance(ref_top3, (int, float)) else "-"
+        st.caption(
+            f"현재 배포판은 데모 데이터 기준입니다. 데스크탑 실데이터 기준 참고 성능: "
+            f"f1={_ref_sdm.get('f1_macro')} · Top-3={ref_top3_txt} "
+            f"· 학습수종 {_ref_sdm.get('n_classes')}종"
+        )
     if not res["recommendations"]:
         st.warning("이 입지에 부합하는 추천 수종을 찾지 못했습니다.")
     for i, r in enumerate(res["recommendations"], 1):

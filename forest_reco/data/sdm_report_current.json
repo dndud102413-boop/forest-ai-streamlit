@@ -1,0 +1,47 @@
+{
+  "n_total": 7807,
+  "n_classes": 5,
+  "algos": [
+    "rf"
+  ],
+  "accuracy": 0.48,
+  "f1_macro": 0.404,
+  "f1_weighted": 0.48,
+  "top3_accuracy": 0.893,
+  "classes": [
+    "낙엽송",
+    "소나무",
+    "신갈나무",
+    "자작나무",
+    "잣나무"
+  ],
+  "features": [
+    "elevation",
+    "slope",
+    "aspect_sin",
+    "aspect_cos",
+    "lat",
+    "lon",
+    "temp_obs",
+    "precip_obs",
+    "site_alt",
+    "site_slope",
+    "site_aspect",
+    "rock_large",
+    "rock_mid",
+    "climate_code",
+    "terrain_group",
+    "deposit_form",
+    "slope_type",
+    "soil_depth",
+    "soil_texture",
+    "soil_type",
+    "wc_annual_precip",
+    "wc_growing_precip",
+    "wc_summer_precip",
+    "wc_winter_precip"
+  ],
+  "measured_at": "2026-06-12",
+  "note": "Desktop real-data reference: forest-site and precipitation features.",
+  "fit_seconds": 26.4
+}

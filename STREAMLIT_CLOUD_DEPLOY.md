@@ -88,3 +88,32 @@ GEMINI_API_KEY = "여기에_키_입력"
 - 유료/전용 서버에 데이터와 앱을 같이 올리기
 
 첫 목표는 데모 배포 링크를 성공시키는 것입니다.
+
+## 8. 데스크탑과 같은 실데이터로 Cloud 실행하기
+
+데스크탑의 SDM 참고 성능 `f1=0.404`는 아래 데이터 조합으로 계산된 값입니다.
+
+```text
+data/gangwon_forest_light.gpkg
+data/gangwon_dem.tif
+data/gangwon_site_light.gpkg
+data/gangwon_precip_2020_2024.tif
+data/stations.csv
+data/derived/stations_verified.csv
+```
+
+이 중 `gangwon_forest_light.gpkg`와 `gangwon_site_light.gpkg`는 GitHub 일반 저장소에 직접 올리기에는 큽니다.
+
+따라서 실데이터 배포는 다음 방식으로 진행합니다.
+
+1. 위 파일들을 zip으로 묶습니다.
+2. GitHub Release, Google Drive 직접 다운로드 링크, S3 같은 외부 저장소에 올립니다.
+3. Streamlit Cloud 앱 설정의 `Secrets`에 아래 값을 넣습니다.
+
+```toml
+FOREST_RECO_DATA_BUNDLE_URL = "https://데이터_번들_다운로드_URL/forest_reco_data.zip"
+```
+
+앱은 시작할 때 이 zip을 내려받아 `FOREST_RECO_DATA_DIR`에 풀고, 데모 모드가 아니라 실데이터 모드로 실행합니다.
+
+GitHub 일반 저장소는 100MiB보다 큰 파일을 막으므로, 큰 `.gpkg` 파일은 코드 저장소가 아니라 Release/외부 저장소로 분리하는 것이 안전합니다.
