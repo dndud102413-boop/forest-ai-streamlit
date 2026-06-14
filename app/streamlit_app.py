@@ -76,7 +76,7 @@ if os.environ.get("FOREST_RECO_DATA_BUNDLE_URL") and not os.environ.get("FOREST_
     os.environ["FOREST_RECO_LIGHT"] = "1"
 
 # 배포 식별용 빌드 마커 — Streamlit Cloud가 새 커밋을 실제로 서빙 중인지 확인용.
-APP_BUILD = "2026-06-14 v3 light-mode (no soil/detail/mgmt layers on Cloud)"
+APP_BUILD = "2026-06-14 v4 fileWatcher=none (fix inotify limit) + light-mode"
 
 # ---------------------------------------------------------------------------
 # 모바일 반응형 스타일
