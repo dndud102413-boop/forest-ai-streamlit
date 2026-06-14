@@ -289,56 +289,13 @@ photo_bytes = None
 from forest_reco.exif_gps import extract_gps  # noqa: E402
 
 
-def _refresh_browser_location() -> bool:
-    """브라우저 GPS를 한 번 읽어 세션에 보관한다."""
-    try:
-        from streamlit_js_eval import get_geolocation
-
-        loc = get_geolocation()
-        coords = (loc or {}).get("coords") or {}
-        if "latitude" in coords and "longitude" in coords:
-            ss.browser_lat = float(coords["latitude"])
-            ss.browser_lon = float(coords["longitude"])
-            accuracy = coords.get("accuracy")
-            ss.browser_accuracy_m = float(accuracy) if accuracy is not None else None
-            ss.browser_location_status = "ok"
-            return True
-        if ss.browser_location_status != "ok":
-            ss.browser_location_status = "waiting"
-    except Exception:
-        if ss.browser_location_status != "ok":
-            ss.browser_location_status = "error"
-    return ss.browser_lat is not None and ss.browser_lon is not None
-
-
-def _set_location_from_browser(source: str) -> None:
-    ss.sel_lat = float(ss.browser_lat)
-    ss.sel_lon = float(ss.browser_lon)
-    ss.sel_source = source
-
-
-browser_location_ok = _refresh_browser_location()
+browser_location_ok = False
 
 with tab_gps:
-    st.markdown("<div class='input-card'>휴대폰 브라우저의 위치 권한을 허용하면 현재 위치를 기준으로 분석합니다.</div>",
+    st.markdown("<div class='input-card'>브라우저 GPS 자동 수집은 일부 모바일/Cloud 환경에서 화면 오류를 일으킬 수 있어 현재 비활성화했습니다.</div>",
                 unsafe_allow_html=True)
-    st.caption("단, 지금처럼 http://192.168... 로 접속한 로컬 테스트에서는 GPS가 차단될 수 있습니다.")
-    if browser_location_ok:
-        gps_lat = float(ss.browser_lat)
-        gps_lon = float(ss.browser_lon)
-        gps_acc = (
-            f" · 정확도 ±{ss.browser_accuracy_m:.0f}m"
-            if ss.browser_accuracy_m is not None
-            else ""
-        )
-        st.success(f"현재 위치를 확인했습니다: 위도 {gps_lat:.5f}, 경도 {gps_lon:.5f}{gps_acc}")
-        if ss.sel_source in (None, "gps") or st.button("현재 GPS를 분석 위치로 설정"):
-            _set_location_from_browser("gps")
-    elif ss.browser_location_status == "error":
-        st.warning("현재 위치를 가져오지 못했습니다. 모바일 브라우저의 위치 권한을 확인해주세요.")
-    else:
-        st.info("GPS 권한이 거부되었습니다. 좌표를 직접 입력하거나 위치정보가 포함된 사진을 업로드해주세요.")
-        st.caption("HTTPS 환경에서만 GPS 기능이 정상 작동할 수 있습니다. 배포 환경에서는 Streamlit Cloud 링크에서 테스트해주세요.")
+    st.info("지도 앱에서 현재 위치의 위도·경도를 복사한 뒤 '좌표 입력' 탭에 붙여넣으면 같은 방식으로 분석할 수 있습니다.")
+    st.caption("사진에 위치정보가 남아 있으면 '숲 사진' 탭에서 자동으로 좌표를 읽습니다.")
 
 with tab_gallery:
     st.markdown("<div class='input-card'>현장에서 바로 촬영하거나 원본 사진을 올리면 사진 속 GPS를 먼저 읽고, 없으면 현재 GPS를 함께 사용합니다.</div>",
@@ -365,29 +322,12 @@ with tab_gallery:
                 ss.sel_source = "exif"
         else:
             st.warning("사진에서 위치정보를 찾을 수 없습니다.")
-            if browser_location_ok:
-                source = "capture_gps" if photo_source == "capture" else "upload_gps"
-                gps_acc = (
-                    f" 정확도는 약 ±{ss.browser_accuracy_m:.0f}m입니다."
-                    if ss.browser_accuracy_m is not None
-                    else ""
-                )
-                st.info(
-                    f"대신 현재 GPS를 확인했습니다. 위도 {ss.browser_lat:.5f}, "
-                    f"경도 {ss.browser_lon:.5f}.{gps_acc}"
-                )
-                if st.button("현재 GPS를 이 사진의 분석 위치로 사용"):
-                    _set_location_from_browser(source)
-                    st.success("현재 GPS를 사진의 분석 기준 위치로 저장했습니다.")
-            elif ss.browser_location_status == "error":
-                st.warning("현재 GPS도 가져오지 못했습니다. 위치 권한을 허용하거나 좌표를 직접 입력해주세요.")
-            else:
-                st.info("위치 권한 요청이 표시되면 허용해주세요. 허용 후 화면이 갱신되면 현재 GPS를 사용할 수 있습니다.")
+            st.info("사진 위치정보가 없으면 '좌표 입력' 탭에서 위도·경도를 직접 입력해주세요.")
     with st.expander("아이폰에서 위치가 안 뜰 때"):
         st.caption(
             "아이폰은 브라우저에서 바로 촬영한 사진의 위치정보를 빼고 전달할 수 있습니다. "
-            "그래서 이 앱은 사진 EXIF가 없으면 브라우저 현재 GPS를 따로 받아 분석 위치로 사용합니다. "
-            "단, 로컬 모바일 주소(http://192.168...)에서는 보안 제한 때문에 카메라나 GPS 권한이 막힐 수 있습니다."
+            "사진 EXIF가 없으면 지도 앱에서 현재 위치의 위도·경도를 복사해 '좌표 입력' 탭에 넣어주세요. "
+            "로컬 모바일 주소(http://192.168...)에서는 보안 제한 때문에 카메라나 GPS 권한이 막힐 수 있습니다."
         )
 
 with tab_manual:
