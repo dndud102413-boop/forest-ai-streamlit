@@ -46,6 +46,9 @@ for _secret_key in ("GEMINI_API_KEY", "FOREST_RECO_DATA_BUNDLE_URL"):
 if os.environ.get("FOREST_RECO_DATA_BUNDLE_URL") and not os.environ.get("FOREST_RECO_DATA_DIR"):
     os.environ["FOREST_RECO_DATA_DIR"] = str(Path.home() / ".cache" / "forest_reco_data")
 
+# 배포 식별용 빌드 마커 — Streamlit Cloud가 새 커밋을 실제로 서빙 중인지 확인용.
+APP_BUILD = "2026-06-14 removeChild-fix (no-deckgl-map)"
+
 # ---------------------------------------------------------------------------
 # 모바일 반응형 스타일
 # ---------------------------------------------------------------------------
@@ -256,6 +259,7 @@ st.caption(
     "배포된 https://... 주소에서는 LTE나 다른 와이파이에서도 접속할 수 있고, 카메라·위치 권한이 더 안정적으로 동작합니다. "
     "PC 로컬 주소(http://192.168...)로 테스트할 때만 브라우저 보안 제한이 생길 수 있습니다."
 )
+st.caption(f"build: {APP_BUILD}")
 if _bundle_error:
     st.warning(
         "실데이터를 내려받지 못해 현재는 데모 데이터로 실행됩니다. "
@@ -373,10 +377,15 @@ goal = None if goal == "(자동)" else goal
 audience = c2.selectbox("설명 대상", list(AUDIENCES.keys()), index=0)
 
 # 위치 지도 미리보기
+# 주의: st.map(deck.gl/WebGL)은 잦은 rerun·expander 토글 시 React 노드를 놓쳐
+# "Failed to execute 'removeChild' on 'Node'" 프론트 오류를 유발할 수 있어
+# WebGL 없는 정적 지도 링크로 대체한다.
 if lat is not None and lon is not None:
-    import pandas as pd
-    with st.expander("선택 위치 지도 보기", expanded=False):
-        st.map(pd.DataFrame({"lat": [lat], "lon": [lon]}), zoom=10)
+    _osm = f"https://www.openstreetmap.org/?mlat={lat}&mlon={lon}#map=13/{lat}/{lon}"
+    st.markdown(
+        f"📍 선택 위치: 위도 **{lat:.6f}**, 경도 **{lon:.6f}** · "
+        f"[지도에서 열기]({_osm})"
+    )
 
 # ---------------------------------------------------------------------------
 # 3) 분석 실행
