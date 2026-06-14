@@ -82,6 +82,8 @@ class DataSources:
     @property
     def site(self) -> Optional[SiteMap]:
         """산림입지도(토양·모암·토심·토성) 지연 로딩. 없으면 None."""
+        if getattr(self.settings, "light_mode", False):
+            return None  # 경량 모드: 대용량(274MB) 토양도 미로딩
         if self._site is None and not self._site_tried:
             self._site_tried = True
             try:
@@ -93,6 +95,8 @@ class DataSources:
     @property
     def site_detail(self) -> Optional[SiteDetailMap]:
         """상세 산림입지/토양도 지연 로딩. 없으면 None."""
+        if getattr(self.settings, "light_mode", False):
+            return None  # 경량 모드: 최대용량(537MB) 상세입지도 미로딩
         if self._site_detail is None and not self._site_detail_tried:
             self._site_detail_tried = True
             try:
@@ -114,6 +118,8 @@ class DataSources:
 
     @property
     def management(self) -> Optional[ManagementLayers]:
+        if getattr(self.settings, "light_mode", False):
+            return None  # 경량 모드: 시업이력(병해충 14만점 등) 미로딩
         if self._management is None and not self._management_tried:
             self._management_tried = True
             try:

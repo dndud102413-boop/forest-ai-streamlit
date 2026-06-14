@@ -88,6 +88,9 @@ class Settings:
     sdm_top_species: int = 5
     use_management_in_sdm: bool = False
     use_top3_boost_sdm: bool = True
+    # 경량 모드: 대용량 토양/상세입지/시업 레이어를 로딩하지 않는다(저메모리 Cloud용).
+    # 임상도·DEM·강수격자·관측소 실측만 사용해 메모리 폭주(OOM)를 방지한다.
+    light_mode: bool = False
 
     # ---- 파생 경로 ----
     @property
@@ -151,6 +154,9 @@ class Settings:
             s.sdm_algos = tuple(a.strip() for a in v.split(",") if a.strip())
         if v := os.environ.get("FOREST_RECO_GEMINI_MODEL"):
             s.gemini_model = v
+        if os.environ.get("FOREST_RECO_LIGHT", "").strip().lower() in ("1", "true", "yes", "on"):
+            s.light_mode = True
+            s.use_top3_boost_sdm = False  # 2차 모델 학습도 생략(메모리·시간 절약)
         return s
 
 

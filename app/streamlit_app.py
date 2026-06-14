@@ -69,8 +69,14 @@ for _secret_key in ("GEMINI_API_KEY", "FOREST_RECO_DATA_BUNDLE_URL"):
 if os.environ.get("FOREST_RECO_DATA_BUNDLE_URL") and not os.environ.get("FOREST_RECO_DATA_DIR"):
     os.environ["FOREST_RECO_DATA_DIR"] = str(Path.home() / ".cache" / "forest_reco_data")
 
+# Streamlit Cloud(번들 URL 존재) 무료 플랜은 메모리(~1GB)가 작아, 대용량 토양/상세입지/
+# 시업 레이어를 함께 로딩하면 OOM으로 앱이 죽는다("Oh no"). Cloud에서는 경량 모드를
+# 기본 적용해 임상도·DEM·강수격자·관측소 실측만 사용한다(로컬은 영향 없음, 풀데이터 유지).
+if os.environ.get("FOREST_RECO_DATA_BUNDLE_URL") and not os.environ.get("FOREST_RECO_LIGHT"):
+    os.environ["FOREST_RECO_LIGHT"] = "1"
+
 # 배포 식별용 빌드 마커 — Streamlit Cloud가 새 커밋을 실제로 서빙 중인지 확인용.
-APP_BUILD = "2026-06-14 v2 removeChild-fix (no-deckgl-map + notranslate)"
+APP_BUILD = "2026-06-14 v3 light-mode (no soil/detail/mgmt layers on Cloud)"
 
 # ---------------------------------------------------------------------------
 # 모바일 반응형 스타일
