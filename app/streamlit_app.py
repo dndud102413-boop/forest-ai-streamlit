@@ -36,6 +36,29 @@ from forest_reco.validation import evaluate_validation  # noqa: E402
 st.set_page_config(page_title="산림 수종 추천 AI", page_icon="🌲",
                    layout="centered", initial_sidebar_state="collapsed")
 
+# 브라우저 자동번역(크롬/엣지/웨일/파파고)이 React 텍스트 노드를 바꿔치기하면
+# "Failed to execute 'removeChild' on 'Node'" 프론트 오류로 앱 전체가 죽는다.
+# 부모 문서에 notranslate를 지정해 자동번역 자체를 막는다(srcdoc → same-origin).
+import streamlit.components.v1 as _components  # noqa: E402
+_components.html(
+    """
+    <script>
+    try {
+      var d = window.parent.document;
+      d.documentElement.setAttribute('translate', 'no');
+      d.documentElement.classList.add('notranslate');
+      d.documentElement.lang = 'ko';
+      if (!d.querySelector('meta[name="google"]')) {
+        var m = d.createElement('meta');
+        m.name = 'google'; m.content = 'notranslate';
+        (d.head || d.documentElement).appendChild(m);
+      }
+    } catch (e) {}
+    </script>
+    """,
+    height=0,
+)
+
 for _secret_key in ("GEMINI_API_KEY", "FOREST_RECO_DATA_BUNDLE_URL"):
     try:
         if _secret_key in st.secrets and not os.environ.get(_secret_key):
@@ -47,7 +70,7 @@ if os.environ.get("FOREST_RECO_DATA_BUNDLE_URL") and not os.environ.get("FOREST_
     os.environ["FOREST_RECO_DATA_DIR"] = str(Path.home() / ".cache" / "forest_reco_data")
 
 # 배포 식별용 빌드 마커 — Streamlit Cloud가 새 커밋을 실제로 서빙 중인지 확인용.
-APP_BUILD = "2026-06-14 removeChild-fix (no-deckgl-map)"
+APP_BUILD = "2026-06-14 v2 removeChild-fix (no-deckgl-map + notranslate)"
 
 # ---------------------------------------------------------------------------
 # 모바일 반응형 스타일
