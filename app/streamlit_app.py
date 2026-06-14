@@ -59,14 +59,23 @@ _components.html(
     height=0,
 )
 
-for _secret_key in ("GEMINI_API_KEY", "FOREST_RECO_DATA_BUNDLE_URL"):
+for _secret_key in ("GEMINI_API_KEY", "FOREST_RECO_DATA_BUNDLE_URL", "FOREST_RECO_DEMO"):
     try:
         if _secret_key in st.secrets and not os.environ.get(_secret_key):
             os.environ[_secret_key] = str(st.secrets[_secret_key])
     except Exception:
         pass
 
-if os.environ.get("FOREST_RECO_DATA_BUNDLE_URL") and not os.environ.get("FOREST_RECO_DATA_DIR"):
+# 데모 강제 모드(FOREST_RECO_DEMO=1): 무료 Streamlit Cloud는 시작 시 대용량 번들
+# 다운로드(1GB+)와 56만 폴리곤 로딩을 못 버텨 "Oh no"로 죽는다. 이 플래그가 켜지면
+# 번들 다운로드를 건너뛰고 가벼운 합성 데이터로만 동작해 항상 안정적으로 작동한다.
+# (실데이터 풀 시연은 메모리가 넉넉한 로컬 PC에서.)
+_FORCE_DEMO = os.environ.get("FOREST_RECO_DEMO", "").strip().lower() in ("1", "true", "yes", "on")
+if _FORCE_DEMO:
+    os.environ.pop("FOREST_RECO_DATA_BUNDLE_URL", None)  # 시작 시 대용량 다운로드 차단
+
+# 합성/실데이터 생성을 위한 쓰기 가능한 데이터 폴더(읽기전용 repo 경로 회피)
+if (os.environ.get("FOREST_RECO_DATA_BUNDLE_URL") or _FORCE_DEMO) and not os.environ.get("FOREST_RECO_DATA_DIR"):
     os.environ["FOREST_RECO_DATA_DIR"] = str(Path.home() / ".cache" / "forest_reco_data")
 
 # Streamlit Cloud(번들 URL 존재) 무료 플랜은 메모리(~1GB)가 작아, 대용량 토양/상세입지/
@@ -76,7 +85,7 @@ if os.environ.get("FOREST_RECO_DATA_BUNDLE_URL") and not os.environ.get("FOREST_
     os.environ["FOREST_RECO_LIGHT"] = "1"
 
 # 배포 식별용 빌드 마커 — Streamlit Cloud가 새 커밋을 실제로 서빙 중인지 확인용.
-APP_BUILD = "2026-06-14 v4 fileWatcher=none (fix inotify limit) + light-mode"
+APP_BUILD = "2026-06-14 v5 demo-mode on Cloud (no bundle download) + fileWatcher=none"
 
 # ---------------------------------------------------------------------------
 # 모바일 반응형 스타일
@@ -250,7 +259,7 @@ if _bundle_url:
         _bundle_error = str(exc)
 
 _default_dir = Settings().data_dir
-_has_real = _real_data_exists(_default_dir)
+_has_real = (not _FORCE_DEMO) and _real_data_exists(_default_dir)
 _ref_sdm = _reference_sdm_report()
 
 with st.sidebar:
