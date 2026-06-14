@@ -40,8 +40,8 @@ def test_analyze_no_location(mock_sources):
 
 
 def test_analyze_out_of_range(mock_sources):
-    # 데이터 영역(강원권) 밖 좌표 → 범위 밖 메시지
-    res = analyze(lat=33.3, lon=126.5, sources=mock_sources)  # 제주
+    # 합성 데이터 영역 밖 좌표 → 범위 밖 메시지
+    res = analyze(lat=30.0, lon=122.0, sources=mock_sources)
     assert not res["ok"]
 
 
