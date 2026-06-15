@@ -180,3 +180,30 @@ class ForestMap:
             return {}
         counts = within["KOFTR_NM"].value_counts()
         return {str(k): int(v) for k, v in counts.items()}
+
+    def species_area_shares(
+        self, lon: float, lat: float, radius_m: float,
+        point_crs: str = CRS_WGS84,
+    ) -> dict[str, float]:
+        """
+        반경 buffer와 교차하는 임상도 폴리곤의 **면적가중** 수종비율(KOFTR_NM 기준).
+        반환: {수종명: 0~1 비율}, 합 = 1.0. 반경 내 임분이 없으면 {}.
+        (신뢰도 모듈의 '주변 임분 일치도' 계산에 사용. 좌표계가 미터(5179)라 면적 정확.)
+        """
+        local_pt = self._to_local(lon, lat, point_crs)
+        buf = local_pt.buffer(radius_m)
+        near_idx = list(self.gdf.sindex.intersection(buf.bounds))
+        if not near_idx or "KOFTR_NM" not in self.gdf.columns:
+            return {}
+        sub = self.gdf.iloc[near_idx]
+        # 면적은 buffer와의 교집합 면적으로 가중(폴리곤이 반경에 일부만 걸쳐도 정확)
+        inter_area = sub.geometry.intersection(buf).area
+        sub = sub.assign(_inter_area=inter_area.values)
+        sub = sub[sub["_inter_area"] > 0]
+        if sub.empty:
+            return {}
+        grouped = sub.groupby("KOFTR_NM")["_inter_area"].sum()
+        total = float(grouped.sum())
+        if total <= 0:
+            return {}
+        return {str(k): float(v) / total for k, v in grouped.items()}

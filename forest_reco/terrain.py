@@ -148,3 +148,78 @@ class Terrain:
             aspect_deg=float(aspect) if aspect is not None else None,
             aspect_dir=aspect_to_direction(aspect) if aspect is not None else "평지",
         )
+
+    # ---- 반경 통계 (신뢰도 모듈의 '환경 다양성' 계산용) ----
+    def radius_stats(self, lon: float, lat: float, radius_m: float,
+                     point_crs: str = CRS_WGS84, grid: int = 5) -> Optional[dict]:
+        """
+        반경 내 DEM을 grid×grid 점으로 샘플링해 고도/경사 변동성과 향 분포를 계산한다.
+        반환: {elevation_mean/std/range, slope_mean/std, aspect_distribution{...}, n_samples}.
+        유효 표본이 너무 적으면 None(호출부가 '분석 제한' 처리).
+        """
+        import geopandas as gpd
+        from shapely.geometry import Point
+
+        # 중심을 미터 좌표(5179)로 변환해 반경 격자를 만든다.
+        center = gpd.GeoSeries([Point(lon, lat)], crs=point_crs).to_crs(CRS_KOREA_TM).iloc[0]
+        offs = np.linspace(-radius_m, radius_m, max(2, grid))
+        r2 = float(radius_m) ** 2
+        self._ensure_slope_aspect()
+
+        elevs, slopes, aspects = [], [], []
+        for dx in offs:
+            for dy in offs:
+                if dx * dx + dy * dy > r2:        # 원 안만
+                    continue
+                px, py = center.x + dx, center.y + dy
+                try:
+                    e = sample_raster(self.ds, px, py, point_crs=CRS_KOREA_TM,
+                                      array=self._elev, method="bilinear")
+                    elevs.append(float(e))
+                except RasterSampleError:
+                    pass
+                if self._slope_ds is not None:
+                    try:
+                        s = sample_raster(self._slope_ds, px, py, point_crs=CRS_KOREA_TM,
+                                          array=self._slope, method="nearest")
+                        a = sample_raster(self._slope_ds, px, py, point_crs=CRS_KOREA_TM,
+                                          array=self._aspect, method="nearest")
+                        slopes.append(float(s))
+                        aspects.append(float(a))
+                    except RasterSampleError:
+                        pass
+
+        if len(elevs) < 3:
+            return None
+
+        elev_arr = np.asarray(elevs, dtype="float64")
+        out = {
+            "elevation_mean": float(np.mean(elev_arr)),
+            "elevation_std": float(np.std(elev_arr)),
+            "elevation_range": float(np.max(elev_arr) - np.min(elev_arr)),
+            "n_samples": len(elevs),
+        }
+        if slopes:
+            slope_arr = np.asarray(slopes, dtype="float64")
+            out["slope_mean"] = float(np.mean(slope_arr))
+            out["slope_std"] = float(np.std(slope_arr))
+        if aspects:
+            out["aspect_distribution"] = self._aspect_distribution(aspects)
+        return out
+
+    @staticmethod
+    def _aspect_distribution(aspects: list) -> dict:
+        """향(0=북,90=동,180=남,270=서)을 4방위 비율로 집계."""
+        bins = {"북": 0, "동": 0, "남": 0, "서": 0}
+        for a in aspects:
+            ad = float(a) % 360
+            if ad >= 315 or ad < 45:
+                bins["북"] += 1
+            elif ad < 135:
+                bins["동"] += 1
+            elif ad < 225:
+                bins["남"] += 1
+            else:
+                bins["서"] += 1
+        total = sum(bins.values()) or 1
+        return {k: round(v / total, 3) for k, v in bins.items()}

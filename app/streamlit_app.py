@@ -414,6 +414,17 @@ goal = c1.selectbox("식재 목적", ["(자동)"] + list(GOALS.keys()), index=0)
 goal = None if goal == "(자동)" else goal
 audience = c2.selectbox("설명 대상", list(AUDIENCES.keys()), index=0)
 
+# 추천 신뢰도 분석 — 데스크탑/실데이터 모드에서만 노출(모바일/HF/데모는 OFF로 배포 안정성 유지)
+_is_light = os.environ.get("FOREST_RECO_LIGHT", "").strip().lower() in ("1", "true", "yes", "on")
+desktop_mode = (not use_mock) and (not _FORCE_DEMO) and (not _is_light)
+radius_m = 1000
+if desktop_mode:
+    _rlabel = {500: "500m", 1000: "1km", 3000: "3km"}
+    radius_m = st.selectbox(
+        "주변 분석 반경 (추천 신뢰도·환경 다양성)", [500, 1000, 3000], index=1,
+        format_func=lambda v: _rlabel.get(v, f"{v}m"),
+        help="입력 좌표 주변 이 반경으로 실제 임분 일치도와 환경 다양성을 분석합니다.")
+
 # 위치 지도 미리보기
 # 주의: st.map(deck.gl/WebGL)은 잦은 rerun·expander 토글 시 React 노드를 놓쳐
 # "Failed to execute 'removeChild' on 'Node'" 프론트 오류를 유발할 수 있어
@@ -440,7 +451,8 @@ if run:
         with st.spinner("입지 분석 및 수종 추천 중… (ML 최초 사용 시 모델 학습으로 수십 초 소요)"):
             res = analyze(lat=lat, lon=lon, goal=goal, audience=audience,
                           sources=sources, gemini_api_key=(gemini_key or None),
-                          top_k=6, use_sdm=use_sdm)
+                          top_k=6, use_sdm=use_sdm,
+                          radius_m=radius_m, compute_reliability=desktop_mode)
             if isinstance(res, dict) and isinstance(res.get("location"), dict):
                 res["location"]["source"] = loc_source
         st.session_state["last_result"] = res
@@ -719,6 +731,57 @@ if res is not None:
             st.caption("· 식재 전 현장 토심·배수·사면 방향을 재확인하세요.")
             st.caption("· 병해충 발생 이력이 있는 지역은 초기 모니터링을 강화하세요.")
             st.caption("· 최근 조림·숲가꾸기 이력과 충돌하지 않도록 관리 계획을 확인하세요.")
+
+    # --- 추천 신뢰도 분석 (데스크탑/실데이터 모드에서만 result에 존재) ---
+    rel = res.get("reliability")
+    if rel:
+        _LV = {"높음": "🟢", "보통": "🟡", "낮음": "🔴", "분석 제한": "⚪"}
+        ov = rel.get("overall_reliability") or {}
+        gap = rel.get("sdm_probability_gap") or {}
+        nb = rel.get("neighbor_agreement") or {}
+        dv = rel.get("environment_diversity") or {}
+        _rad = rel.get("radius_m")
+        _rlabel = "1km" if _rad == 1000 else f"{_rad}m"
+        _ov_lv = ov.get("level", "분석 제한")
+        st.subheader("🔎 추천 신뢰도 분석")
+        st.markdown(
+            f"<div class='mobile-hero'>{_LV.get(_ov_lv, '')} "
+            f"<b>이 추천의 종합 신뢰도는 {html_escape(_ov_lv)} 입니다.</b><br>"
+            f"{html_escape(str(ov.get('message', '')))}</div>",
+            unsafe_allow_html=True)
+        m1, m2, m3 = st.columns(3)
+        m1.metric("SDM 확신도", f"{_LV.get(gap.get('level'), '')} {gap.get('level', '-')}")
+        m2.metric(f"주변 일치도({_rlabel})", f"{_LV.get(nb.get('level'), '')} {nb.get('level', '-')}")
+        m3.metric(f"환경 다양성({_rlabel})", f"{_LV.get(dv.get('level'), '')} {dv.get('level', '-')}")
+        with st.expander("상세 신뢰도 계산 근거 보기"):
+            st.markdown("**1. SDM 확률 차이 기반 신뢰도**")
+            if gap.get("gap") is not None:
+                st.caption(
+                    f"1위 {gap.get('top1_species', '-')} {gap.get('top1_probability', '-')} · "
+                    f"2위 {gap.get('top2_species', '-')} {gap.get('top2_probability', '-')} · "
+                    f"확률 차이 {gap.get('gap', '-')}")
+            st.caption(gap.get("message", ""))
+            st.markdown("**2. 주변 임분 일치도**")
+            _shares = nb.get("top_species_area_share") or {}
+            if _shares:
+                st.caption("반경 내 주요 수종: " + ", ".join(
+                    f"{k} {v * 100:.1f}%" for k, v in _shares.items()))
+            if nb.get("top3_agreement") is not None:
+                st.caption(
+                    f"추천 Top3 일치도 {nb.get('top3_agreement')} · "
+                    f"추천 1위 주변 면적비율 {(nb.get('recommended_top1_share') or 0) * 100:.1f}%")
+            st.caption(nb.get("message", ""))
+            st.markdown("**3. 반경 내 환경 다양성 지수**")
+            _bits = []
+            if dv.get("elevation_std") is not None:
+                _bits.append(f"고도 std {dv['elevation_std']}m")
+            if dv.get("slope_std") is not None:
+                _bits.append(f"경사 std {dv['slope_std']}°")
+            if dv.get("species_shannon") is not None:
+                _bits.append(f"수종 Shannon {dv['species_shannon']}")
+            if _bits:
+                st.caption(" · ".join(_bits))
+            st.caption(dv.get("message", ""))
 
     # --- LLM/폴백 설명 ---
     st.subheader("📝 AI 설명")

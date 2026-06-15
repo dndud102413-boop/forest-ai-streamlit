@@ -230,6 +230,8 @@ def analyze(
     gemini_api_key: Optional[str] = None,
     explain: bool = True,
     use_sdm: bool = True,
+    radius_m: int = 1000,
+    compute_reliability: bool = False,
 ) -> dict:
     """
     전체 분석 수행. 반환 구조:
@@ -362,6 +364,16 @@ def analyze(
         "sdm_f1_weighted": (sdm_report or {}).get("f1_weighted") if sdm_used else None,
         "sdm_n_classes": (sdm_report or {}).get("n_classes") if sdm_used else None,
     }
+
+    # 6.5) 추천 신뢰도 보완 지표 (데스크탑/실데이터 전용; 기본 OFF → 모바일/HF 안정성 유지)
+    if compute_reliability:
+        try:
+            from .reliability import compute_reliability as _calc_reliability
+            result["reliability"] = _calc_reliability(
+                sources=sources, site=site, rec_dicts=rec_dicts,
+                sdm_probs=sdm_probs, radius_m=radius_m, db=sources.db)
+        except Exception:  # noqa: BLE001 - 보조 지표이므로 실패해도 추천은 그대로
+            result["reliability"] = None
 
     # 7) 설명
     if explain:

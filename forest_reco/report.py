@@ -55,6 +55,32 @@ def _radius_rows(title: str, data: dict, main_key: str = "") -> str:
     return f"<h3>{escape(title)}</h3><ul>{rows}</ul>"
 
 
+def _reliability_html(rel: dict) -> str:
+    """추천 신뢰도 분석 섹션(데스크탑 분석 시에만 result에 존재)."""
+    if not rel:
+        return ""
+    ov = rel.get("overall_reliability") or {}
+    gap = rel.get("sdm_probability_gap") or {}
+    nb = rel.get("neighbor_agreement") or {}
+    dv = rel.get("environment_diversity") or {}
+    radius = rel.get("radius_m")
+    rlabel = "1km" if radius == 1000 else (f"{radius}m" if radius else "")
+    return f"""
+  <h2>8. 추천 신뢰도 분석</h2>
+  <p class="note"><b>종합 추천 신뢰도: {_html_value(ov.get('level'))}</b><br>{_html_value(ov.get('message'))}</p>
+  <table>
+    {_row("SDM 확률 차이 신뢰도", gap.get('level'))}
+    {_row(f"주변 임분 일치도(반경 {rlabel})", nb.get('level'))}
+    {_row(f"환경 다양성 지수(반경 {rlabel})", dv.get('level'))}
+  </table>
+  <ul>
+    <li>{_html_value(gap.get('message'))}</li>
+    <li>{_html_value(nb.get('message'))}</li>
+    <li>{_html_value(dv.get('message'))}</li>
+  </ul>
+"""
+
+
 def _collect_report_data(result: dict) -> dict:
     return {
         "loc": result.get("location") or {},
@@ -66,6 +92,7 @@ def _collect_report_data(result: dict) -> dict:
         "precip": result.get("precip_grid") or {},
         "diag": result.get("diagnosis") or {},
         "mg_radius": result.get("management_radius") or {},
+        "reliability": result.get("reliability") or {},
         "recs": result.get("recommendations") or [],
         "explanation": (result.get("explanation") or {}).get("text"),
         "generated": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -173,6 +200,7 @@ def create_report(result: dict) -> str:
     <li>병해충 발생 이력이 있는 지역은 식재 후 모니터링을 강화하세요.</li>
     <li>최근 숲가꾸기 이력이 있는 지역은 기존 관리 방향과 충돌하지 않도록 계획을 조정하세요.</li>
   </ul>
+  {_reliability_html(d["reliability"])}
 </body>
 </html>"""
 
@@ -316,6 +344,17 @@ def create_pdf_report(result: dict) -> bytes:
         para("• 병해충 발생 이력이 있는 지역은 식재 후 모니터링을 강화하세요."),
         para("• 최근 숲가꾸기 이력이 있는 지역은 기존 관리 방향과 충돌하지 않도록 계획을 조정하세요."),
     ])
+
+    rel = d.get("reliability") or {}
+    if rel:
+        ov = rel.get("overall_reliability") or {}
+        story.append(Paragraph("8. 추천 신뢰도 분석", h2))
+        story.append(para(f"종합 추천 신뢰도: {_plain(ov.get('level'))} — {_plain(ov.get('message'))}"))
+        for label, sub in (("SDM 확률 차이", rel.get("sdm_probability_gap")),
+                           ("주변 임분 일치도", rel.get("neighbor_agreement")),
+                           ("환경 다양성", rel.get("environment_diversity"))):
+            sub = sub or {}
+            story.append(para(f"• {label}: {_plain(sub.get('level'))} — {_plain(sub.get('message'))}"))
 
     buf = BytesIO()
     doc = SimpleDocTemplate(
