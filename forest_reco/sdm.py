@@ -205,28 +205,34 @@ class SpeciesDistributionModel:
         """앙상블 평균 확률(단일 모델이면 그 모델 확률 그대로)."""
         return np.mean([clf.predict_proba(X) for _, clf in self.estimators], axis=0)
 
-    # ---- 학습 ----
-    @classmethod
-    def train(
-        cls,
-        forest_map,
-        terrain,
-        n_samples: int = 3000,
-        min_class: int = 15,
-        random_state: int = 42,
-        test_size: float = 0.2,
-        algos: tuple = ("hgb",),
-        exclude_labels: Optional[set] = None,
-        top_species: Optional[int] = None,
-        use_sample_weight: bool = True,
-        observed=None,
-        site_map=None,
-        precip=None,
-        site_detail_map=None,
-        management=None,
-    ) -> "SpeciesDistributionModel":
-        from sklearn.model_selection import train_test_split
+    # ---- 평가 지표 ----
+    @staticmethod
+    def _metrics_from_proba(proba, yte, classes) -> dict:
+        """확률행렬(앙상블 평균 또는 단일)로 accuracy/f1/top3 산출."""
         from sklearn.metrics import accuracy_score, f1_score
+        classes = list(classes)
+        pred = np.array(classes)[np.argmax(proba, axis=1)]
+        top3 = None
+        try:
+            from sklearn.metrics import top_k_accuracy_score
+            k = min(3, len(classes) - 1)
+            if k >= 1:
+                top3 = round(float(top_k_accuracy_score(yte, proba, k=k, labels=classes)), 3)
+        except Exception:  # noqa: BLE001
+            top3 = None
+        return {
+            "accuracy": round(float(accuracy_score(yte, pred)), 3),
+            "f1_macro": round(float(f1_score(yte, pred, average="macro")), 3),
+            "f1_weighted": round(float(f1_score(yte, pred, average="weighted")), 3),
+            "top3_accuracy": top3,
+        }
+
+    # ---- 피처행렬 생성(학습/비교가 공유) ----
+    @classmethod
+    def _build_xy(cls, forest_map, terrain, n_samples, min_class, random_state,
+                  exclude_labels, top_species, observed, site_map, precip,
+                  site_detail_map, management):
+        """임상도 표본 → (X, y, feat_names). 무거운 피처 질의를 1회만 수행."""
         import geopandas as gpd
 
         gdf = forest_map.gdf
@@ -305,11 +311,21 @@ class SpeciesDistributionModel:
         X, y = X[mask], y[mask]
         if len(set(y)) < 2:
             raise ValueError("유효 수종 클래스가 2개 미만입니다.")
+        return X, y, feat_names
 
+    # ---- 학습(단일 또는 앙상블) ----
+    @classmethod
+    def train(cls, forest_map, terrain, n_samples: int = 3000, min_class: int = 15,
+              random_state: int = 42, test_size: float = 0.2, algos: tuple = ("hgb",),
+              exclude_labels: Optional[set] = None, top_species: Optional[int] = None,
+              use_sample_weight: bool = True, observed=None, site_map=None, precip=None,
+              site_detail_map=None, management=None) -> "SpeciesDistributionModel":
+        from sklearn.model_selection import train_test_split
+        X, y, feat_names = cls._build_xy(forest_map, terrain, n_samples, min_class,
+                                         random_state, exclude_labels, top_species,
+                                         observed, site_map, precip, site_detail_map, management)
         Xtr, Xte, ytr, yte = train_test_split(
-            X, y, test_size=test_size, random_state=random_state, stratify=y
-        )
-        # 클래스 불균형 보정: HGB는 class_weight 미지원이므로 sample_weight로 균형.
+            X, y, test_size=test_size, random_state=random_state, stratify=y)
         sw = None
         if use_sample_weight:
             from sklearn.utils.class_weight import compute_sample_weight
@@ -323,32 +339,58 @@ class SpeciesDistributionModel:
                 clf.fit(Xtr, ytr)   # rf는 class_weight='balanced' 내장
             estimators.append((name, clf))
         ref = estimators[0][1]
-        # 앙상블 평균 확률로 평가(단일 모델이면 그 모델 그대로)
         proba = np.mean([clf.predict_proba(Xte) for _, clf in estimators], axis=0)
-        pred = ref.classes_[np.argmax(proba, axis=1)]
-        # top-3 정확도: 정답이 상위 3개 예측 안에 드는 비율(상위 N종 추천 UX와 정합).
-        top3 = None
-        try:
-            from sklearn.metrics import top_k_accuracy_score
-            k = min(3, len(ref.classes_) - 1)
-            if k >= 1:
-                top3 = round(float(top_k_accuracy_score(
-                    yte, proba, k=k, labels=ref.classes_)), 3)
-        except Exception:  # noqa: BLE001
-            top3 = None
         report = {
-            "n_total": int(len(X)),
-            "n_classes": int(len(set(y))),
-            "algos": list(algos),
-            "accuracy": round(float(accuracy_score(yte, pred)), 3),
-            "f1_macro": round(float(f1_score(yte, pred, average="macro")), 3),
-            "f1_weighted": round(float(f1_score(yte, pred, average="weighted")), 3),
-            "top3_accuracy": top3,
-            "classes": sorted(str(c) for c in set(y)),
-            "features": feat_names,
+            "n_total": int(len(X)), "n_classes": int(len(set(y))), "algos": list(algos),
+            **cls._metrics_from_proba(proba, yte, ref.classes_),
+            "classes": sorted(str(c) for c in set(y)), "features": feat_names,
         }
         return cls(estimators, [str(c) for c in ref.classes_], n_train=len(Xtr),
                    report=report, feature_names=feat_names)
+
+    # ---- 3개 모델 비교(RF / HGB / RF+HGB) — 피처는 1회만 생성 ----
+    @classmethod
+    def train_comparison(cls, forest_map, terrain, n_samples: int = 8000, min_class: int = 15,
+                         random_state: int = 42, test_size: float = 0.2, top_species: int = 5,
+                         observed=None, site_map=None, precip=None, management=None) -> dict:
+        from sklearn.model_selection import train_test_split
+        from sklearn.utils.class_weight import compute_sample_weight
+        X, y, feat_names = cls._build_xy(forest_map, terrain, n_samples, min_class,
+                                         random_state, None, top_species,
+                                         observed, site_map, precip, None, management)
+        Xtr, Xte, ytr, yte = train_test_split(
+            X, y, test_size=test_size, random_state=random_state, stratify=y)
+        sw = compute_sample_weight("balanced", ytr)
+        meta = {"n_total": int(len(X)), "n_classes": int(len(set(y))),
+                "classes": sorted(str(c) for c in set(y)), "features": feat_names}
+
+        rf = _make_estimator("rf", random_state)
+        rf.fit(Xtr, ytr)
+        rf_classes = [str(c) for c in rf.classes_]
+        rf_report = {"algos": ["rf"], "n_train": int(len(Xtr)),
+                     **cls._metrics_from_proba(rf.predict_proba(Xte), yte, rf.classes_), **meta}
+        reports = {"rf": rf_report}
+        models = {"rf": cls([("rf", rf)], rf_classes, len(Xtr), rf_report, feat_names)}
+
+        hgb_ok = False
+        try:
+            hgb = _make_estimator("hgb", random_state)
+            hgb.fit(Xtr, ytr, sample_weight=sw)
+            hgb_report = {"algos": ["hgb"], "n_train": int(len(Xtr)),
+                          **cls._metrics_from_proba(hgb.predict_proba(Xte), yte, hgb.classes_), **meta}
+            ens_proba = np.mean([rf.predict_proba(Xte), hgb.predict_proba(Xte)], axis=0)
+            ens_report = {"algos": ["rf", "hgb"], "n_train": int(len(Xtr)),
+                          **cls._metrics_from_proba(ens_proba, yte, rf.classes_), **meta}
+            reports["hgb"] = hgb_report
+            reports["rf_hgb"] = ens_report
+            models["hgb"] = cls([("hgb", hgb)], [str(c) for c in hgb.classes_], len(Xtr), hgb_report, feat_names)
+            models["rf_hgb"] = cls([("rf", rf), ("hgb", hgb)], rf_classes, len(Xtr), ens_report, feat_names)
+            hgb_ok = True
+        except Exception:  # noqa: BLE001 - HGB 실패 시 RF 단독으로 폴백
+            hgb_ok = False
+        chosen_key = "rf_hgb" if hgb_ok else "rf"
+        return {"reports": reports, "models": models, "chosen": models[chosen_key],
+                "chosen_key": chosen_key, "hgb_ok": hgb_ok, "feature_names": feat_names}
 
     # ---- 예측 ----
     def predict(self, elevation, slope, aspect_deg, lat, lon=None,
@@ -428,3 +470,61 @@ class SpeciesDistributionModel:
         d = joblib.load(path)
         return cls(d["estimators"], d["classes"], d["n_train"], d["report"],
                    feature_names=d.get("feature_names"))
+
+
+# 모델별 캐시 파일명(요청 사양)
+_CMP_FILES = {"rf": "sdm_rf.joblib", "hgb": "sdm_hgb.joblib",
+              "rf_hgb": "sdm_rf_hgb_ensemble.joblib"}
+
+
+def load_or_train_comparison(forest_map, terrain, *, settings, n_samples, top_species,
+                             observed=None, site_map=None, precip=None, management=None) -> dict:
+    """RF/HGB/RF+HGB 비교를 디스크 캐시와 함께 반환. 동일 데이터·옵션이면 재학습하지 않는다.
+
+    모델별 joblib(sdm_rf / sdm_hgb / sdm_rf_hgb_ensemble)와 메타(reports·signature)를
+    data_dir/models 에 저장한다. (in-session 캐시는 호출부의 st.cache_resource가 담당)
+    """
+    import json
+    models_dir = Path(settings.data_dir) / "models"
+    flags = "".join(k for k, v in (("o", observed), ("s", site_map),
+                                   ("p", precip), ("m", management)) if v)
+    signature = f"n{n_samples}_t{top_species}_{flags}"
+    meta_path = models_dir / "sdm_comparison_meta.json"
+    paths = {k: models_dir / v for k, v in _CMP_FILES.items()}
+
+    try:
+        if meta_path.exists():
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+            if meta.get("signature") == signature and paths["rf"].exists():
+                models = {"rf": SpeciesDistributionModel.load(paths["rf"])}
+                hgb_ok = bool(meta.get("hgb_ok"))
+                if hgb_ok and paths["hgb"].exists() and paths["rf_hgb"].exists():
+                    models["hgb"] = SpeciesDistributionModel.load(paths["hgb"])
+                    models["rf_hgb"] = SpeciesDistributionModel.load(paths["rf_hgb"])
+                else:
+                    hgb_ok = False
+                chosen_key = meta.get("chosen_key", "rf")
+                if chosen_key not in models:
+                    chosen_key = "rf"
+                return {"reports": meta["reports"], "models": models,
+                        "chosen": models[chosen_key], "chosen_key": chosen_key,
+                        "hgb_ok": hgb_ok, "feature_names": meta.get("feature_names"),
+                        "cached": True}
+    except Exception:  # noqa: BLE001 - 캐시 손상 시 재학습
+        pass
+
+    comp = SpeciesDistributionModel.train_comparison(
+        forest_map, terrain, n_samples=n_samples, top_species=top_species,
+        observed=observed, site_map=site_map, precip=precip, management=management)
+    try:
+        models_dir.mkdir(parents=True, exist_ok=True)
+        for k, m in comp["models"].items():
+            m.save(paths[k])
+        meta_path.write_text(json.dumps({
+            "signature": signature, "reports": comp["reports"],
+            "chosen_key": comp["chosen_key"], "hgb_ok": comp["hgb_ok"],
+            "feature_names": comp["feature_names"]}, ensure_ascii=False), encoding="utf-8")
+    except Exception:  # noqa: BLE001 - 저장 실패해도 메모리 결과는 사용
+        pass
+    comp["cached"] = False
+    return comp

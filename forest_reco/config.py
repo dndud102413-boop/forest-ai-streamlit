@@ -95,6 +95,9 @@ class Settings:
     # 경량 모드: 대용량 토양/상세입지/시업 레이어를 로딩하지 않는다(저메모리 Cloud용).
     # 임상도·DEM·강수격자·관측소 실측만 사용해 메모리 폭주(OOM)를 방지한다.
     light_mode: bool = False
+    # 데스크탑 전용 옵션(모바일/HF/Cloud는 기본 False로 안정성 유지)
+    sdm_compare_models: bool = False   # RF / HGB / RF+HGB 비교 학습·표시
+    enable_browser_gps: bool = False   # 브라우저 geolocation(현재 위치 가져오기)
 
     # ---- 파생 경로 ----
     @property
@@ -173,6 +176,13 @@ class Settings:
         if os.environ.get("FOREST_RECO_LIGHT", "").strip().lower() in ("1", "true", "yes", "on"):
             s.light_mode = True
             s.use_top3_boost_sdm = False  # 2차 모델 학습도 생략(메모리·시간 절약)
+        if os.environ.get("FOREST_RECO_SDM_COMPARE", "").strip().lower() in ("1", "true", "yes", "on"):
+            s.sdm_compare_models = True
+        if os.environ.get("FOREST_RECO_ENABLE_BROWSER_GPS", "").strip().lower() in ("1", "true", "yes", "on"):
+            s.enable_browser_gps = True
+        if s.light_mode:   # 경량/Cloud에서는 데스크탑 전용 옵션 강제 비활성(안정성)
+            s.sdm_compare_models = False
+            s.enable_browser_gps = False
         return s
 
 

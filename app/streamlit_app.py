@@ -78,6 +78,13 @@ if _FORCE_DEMO:
 if (os.environ.get("FOREST_RECO_DATA_BUNDLE_URL") or _FORCE_DEMO) and not os.environ.get("FOREST_RECO_DATA_DIR"):
     os.environ["FOREST_RECO_DATA_DIR"] = str(Path.home() / ".cache" / "forest_reco_data")
 
+# 데스크탑 브라우저 GPS 활성 여부(FOREST_RECO_ENABLE_BROWSER_GPS=1; 데모/light에서는 비활성)
+_enable_gps = (
+    os.environ.get("FOREST_RECO_ENABLE_BROWSER_GPS", "").strip().lower() in ("1", "true", "yes", "on")
+    and not _FORCE_DEMO
+    and os.environ.get("FOREST_RECO_LIGHT", "").strip().lower() not in ("1", "true", "yes", "on")
+)
+
 # Streamlit Cloud(번들 URL 존재) 무료 플랜은 메모리(~1GB)가 작아, 대용량 토양/상세입지/
 # 시업 레이어를 함께 로딩하면 OOM으로 앱이 죽는다("Oh no"). Cloud에서는 경량 모드를
 # 기본 적용해 임상도·DEM·강수격자·관측소 실측만 사용한다(로컬은 영향 없음, 풀데이터 유지).
@@ -334,10 +341,35 @@ from forest_reco.exif_gps import extract_gps  # noqa: E402
 browser_location_ok = False
 
 with tab_gps:
-    st.markdown("<div class='input-card'>브라우저 GPS 자동 수집은 일부 모바일/Cloud 환경에서 화면 오류를 일으킬 수 있어 현재 비활성화했습니다.</div>",
-                unsafe_allow_html=True)
-    st.info("지도 앱에서 현재 위치의 위도·경도를 복사한 뒤 '좌표 입력' 탭에 붙여넣으면 같은 방식으로 분석할 수 있습니다.")
-    st.caption("사진에 위치정보가 남아 있으면 '숲 사진' 탭에서 자동으로 좌표를 읽습니다.")
+    if _enable_gps:
+        st.markdown("<div class='input-card'>데스크탑 로컬(localhost) 실행에서 '현재 위치 가져오기'를 누르고 브라우저 위치 권한을 허용하면 현재 좌표가 자동으로 입력됩니다.</div>",
+                    unsafe_allow_html=True)
+        if st.button("📍 현재 위치 가져오기"):
+            ss["_gps_request"] = True
+        if ss.get("_gps_request"):
+            try:
+                from streamlit_js_eval import get_geolocation
+                _loc = get_geolocation()  # 컴포넌트 렌더 → 권한 요청, 응답은 다음 rerun에 도착
+                _coords = (_loc or {}).get("coords") if isinstance(_loc, dict) else None
+                if _coords and _coords.get("latitude") is not None:
+                    ss.sel_lat = float(_coords["latitude"])
+                    ss.sel_lon = float(_coords["longitude"])
+                    ss.sel_source = "gps"
+                    ss.browser_accuracy_m = _coords.get("accuracy")
+                    ss["_gps_request"] = False
+                    _acc = _coords.get("accuracy")
+                    st.success(f"현재 위치를 가져왔습니다. 위도: {ss.sel_lat:.6f}, 경도: {ss.sel_lon:.6f}"
+                               + (f", 정확도: {_acc:.0f} m" if _acc else ""))
+                else:
+                    st.info("브라우저에서 위치 권한을 허용해주세요. (응답 대기 중 — 허용 후 잠시 기다리세요)")
+            except Exception:
+                st.warning("브라우저 위치 권한을 사용할 수 없습니다. localhost 실행 여부와 위치 권한을 확인하거나 '좌표 입력' 탭을 사용하세요.")
+        st.caption("권한 거부·미지원·타임아웃 시에도 앱은 멈추지 않습니다. '좌표 입력' 또는 '숲 사진'(EXIF) 탭으로 분석하세요.")
+    else:
+        st.markdown("<div class='input-card'>브라우저 GPS 자동 수집은 모바일/Cloud 환경에서 화면 오류를 일으킬 수 있어 비활성화되어 있습니다.</div>",
+                    unsafe_allow_html=True)
+        st.info("지도 앱에서 현재 위치의 위도·경도를 복사한 뒤 '좌표 입력' 탭에 붙여넣으면 같은 방식으로 분석할 수 있습니다.")
+        st.caption("사진에 위치정보가 남아 있으면 '숲 사진' 탭에서 자동으로 좌표를 읽습니다.")
 
 with tab_gallery:
     st.markdown("<div class='input-card'>현장에서 바로 촬영하거나 원본 사진을 올리면 사진 속 GPS를 먼저 읽고, 없으면 현재 GPS를 함께 사용합니다.</div>",
@@ -774,10 +806,12 @@ if res is not None:
         _rad = rel.get("radius_m")
         _rlabel = "1km" if _rad == 1000 else f"{_rad}m"
         _ov_lv = ov.get("level", "분석 제한")
+        _HEAD = {"높음": "추천 근거가 안정적인 구간", "보통": "현장 확인 권장 구간",
+                 "낮음": "현장 확인 필요 구간", "분석 제한": "신뢰도 정보 제한"}
         st.subheader("🔎 추천 신뢰도 분석")
         st.markdown(
             f"<div class='mobile-hero'>{_LV.get(_ov_lv, '')} "
-            f"<b>이 추천의 종합 신뢰도는 {html_escape(_ov_lv)} 입니다.</b><br>"
+            f"<b>{html_escape(_HEAD.get(_ov_lv, '신뢰도 분석'))}</b><br>"
             f"{html_escape(str(ov.get('message', '')))}</div>",
             unsafe_allow_html=True)
         m1, m2, m3 = st.columns(3)
@@ -839,6 +873,38 @@ if res is not None:
             _mgmt.append("특이 관리 사항은 확인되지 않았습니다. 식재 전 현장 확인을 권장합니다.")
         for _m in _mgmt:
             st.caption("· " + _m)
+
+    # --- SDM 성능 비교 (데스크탑 compare 모드에서만 result에 존재) ---
+    _cmp = res.get("sdm_comparison")
+    if _cmp and _cmp.get("reports"):
+        st.subheader("📊 SDM 성능 비교 (RF / HGB / 앙상블)")
+        if not _cmp.get("hgb_ok"):
+            st.warning("HGB/앙상블 학습 실패로 RF 단독 모델을 사용했습니다.")
+        _names = {"rf": "RF", "hgb": "HGB", "rf_hgb": "RF+HGB Ensemble"}
+        _chosen = _cmp.get("chosen_key")
+        _reps = _cmp["reports"]
+        import pandas as _pd
+        _rows = []
+        for _k in ("rf", "hgb", "rf_hgb"):
+            _r = _reps.get(_k)
+            if not _r:
+                continue
+            _rows.append({
+                "모델": _names[_k] + (" ✅사용" if _k == _chosen else ""),
+                "Accuracy": _r.get("accuracy"),
+                "F1 macro": _r.get("f1_macro"),
+                "F1 weighted": _r.get("f1_weighted"),
+                "Top-3": _r.get("top3_accuracy"),
+                "학습표본": _r.get("n_train"),
+                "수종수": _r.get("n_classes"),
+            })
+        if _rows:
+            st.dataframe(_pd.DataFrame(_rows), hide_index=True, use_container_width=True)
+        st.caption(f"현재 추천에 실제 사용된 모델: **{_names.get(_chosen, _chosen)}** "
+                   "(성능 리포트의 기준 모델)")
+        with st.expander("사용 피처 목록 보기"):
+            _feats = (_reps.get(_chosen) or {}).get("features") or []
+            st.caption(", ".join(map(str, _feats)) if _feats else "정보 없음")
 
     # --- LLM/폴백 설명 ---
     st.subheader("📝 AI 설명")

@@ -46,6 +46,7 @@ class DataSources:
     _db: Optional[SpeciesDB] = None
     _sdm: object = None
     _sdm_tried: bool = False
+    _sdm_comparison: object = None
     _sdm_top3: object = None
     _sdm_top3_tried: bool = False
     _observed: object = None
@@ -197,33 +198,57 @@ class DataSources:
 
     @property
     def sdm(self):
-        """수종분포모델(지연 학습/로딩, 1회 캐시). 실패 시 None."""
+        """수종분포모델(지연 학습/로딩, 1회 캐시). 실패 시 None.
+
+        데스크탑 compare 모드(`sdm_compare_models` & not light)에서는 RF/HGB/RF+HGB를
+        한 번에 학습·비교하고 **앙상블을 추천에 사용**(HGB 실패 시 RF 단독 폴백)한다.
+        light/cloud에서는 기존 단일 모델 경로(가벼움)를 유지한다.
+        """
         if self._sdm is None and not self._sdm_tried:
             self._sdm_tried = True
             from .sdm import SpeciesDistributionModel
-            path = getattr(self.settings, "sdm_path", None)
             try:
-                if path and Path(path).exists():
-                    self._sdm = SpeciesDistributionModel.load(path)
-                else:
-                    self._sdm = SpeciesDistributionModel.train(
-                        self.forest, self.terrain,
-                        algos=getattr(self.settings, "sdm_algos", ("hgb",)),
-                        n_samples=getattr(self.settings, "sdm_n_samples", 3000),
-                        top_species=getattr(self.settings, "sdm_top_species", None),
-                        observed=self.observed,
-                        site_map=self.site,
-                        precip=self.precip,
+                if (not getattr(self.settings, "light_mode", False)
+                        and getattr(self.settings, "sdm_compare_models", False)):
+                    from .sdm import load_or_train_comparison
+                    comp = load_or_train_comparison(
+                        self.forest, self.terrain, settings=self.settings,
+                        n_samples=getattr(self.settings, "sdm_n_samples", 8000),
+                        top_species=getattr(self.settings, "sdm_top_species", 5),
+                        observed=self.observed, site_map=self.site, precip=self.precip,
                         management=(self.management if getattr(self.settings, "use_management_in_sdm", False) else None))
-                    if path:
-                        self._sdm.save(path)
+                    self._sdm_comparison = comp
+                    self._sdm = comp["chosen"]          # 앙상블(또는 RF 폴백)
+                else:
+                    path = getattr(self.settings, "sdm_path", None)
+                    if path and Path(path).exists():
+                        self._sdm = SpeciesDistributionModel.load(path)
+                    else:
+                        self._sdm = SpeciesDistributionModel.train(
+                            self.forest, self.terrain,
+                            algos=getattr(self.settings, "sdm_algos", ("hgb",)),
+                            n_samples=getattr(self.settings, "sdm_n_samples", 3000),
+                            top_species=getattr(self.settings, "sdm_top_species", None),
+                            observed=self.observed, site_map=self.site, precip=self.precip,
+                            management=(self.management if getattr(self.settings, "use_management_in_sdm", False) else None))
+                        if path:
+                            self._sdm.save(path)
             except Exception:  # noqa: BLE001 - SDM은 보조이므로 실패해도 추천은 계속
                 self._sdm = None
         return self._sdm
 
     @property
+    def sdm_comparison(self):
+        """RF/HGB/RF+HGB 비교 dict(데스크탑 compare 모드에서만). 없으면 None."""
+        _ = self.sdm  # 비교 빌드 트리거
+        return self._sdm_comparison
+
+    @property
     def sdm_top3(self):
         """Top-3 candidate booster trained with planting-history features only."""
+        # compare 모드에서는 앙상블을 그대로 확률모델로 써서 '사용 모델'을 명확히 한다.
+        if getattr(self.settings, "sdm_compare_models", False):
+            return None
         if not getattr(self.settings, "use_top3_boost_sdm", True):
             return None
         if self._sdm_top3 is None and not self._sdm_top3_tried:
@@ -439,6 +464,17 @@ def analyze(
                 official_species=(afq.all_species if (afq and afq.found) else None))
         except Exception:  # noqa: BLE001 - 보조 지표이므로 실패해도 추천은 그대로
             result["reliability"] = None
+        if use_sdm:
+            try:
+                comp = sources.sdm_comparison
+                if comp:
+                    result["sdm_comparison"] = {
+                        "reports": comp.get("reports"),
+                        "chosen_key": comp.get("chosen_key"),
+                        "hgb_ok": comp.get("hgb_ok"),
+                    }
+            except Exception:  # noqa: BLE001
+                result["sdm_comparison"] = None
 
     # 7) 설명
     if explain:

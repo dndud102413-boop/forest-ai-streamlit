@@ -239,14 +239,13 @@ def overall_reliability(gap_res: dict, neighbor_res: dict, diversity_res: dict,
     avg = sum(vals) / len(vals)
     if avg >= 1.34:
         level = LEVEL_HIGH
-        msg = "SDM·주변 임분·환경 균질성이 모두 추천 결과를 비교적 잘 뒷받침합니다."
+        msg = "AI 추천, 주변 임분, 공식 조림지도 근거가 비교적 일치하여 추천 근거가 안정적인 구간입니다."
     elif avg >= 0.67:
         level = LEVEL_MID
-        msg = "추천 결과는 일정 부분 뒷받침되나, 후보 Top-3 비교와 현장 확인을 함께 권장합니다."
+        msg = "일부 근거는 일치하지만 입지 조건 또는 주변 임분 차이가 있어 현장 확인 후 적용하는 것이 좋습니다."
     else:
         level = LEVEL_LOW
-        msg = ("SDM 확신도·주변 임분 일치·환경 균질성 중 다수가 낮아 단일 좌표 추천의 불확실성이 "
-               "큽니다. 현장 토양·배수·병해충 피해 여부를 추가로 확인해야 합니다.")
+        msg = "추천 근거 간 차이가 있어 단독 판단보다는 현장 토양·수분·재해위험 확인이 필요한 구간입니다."
     return {"level": level, "message": msg}
 
 

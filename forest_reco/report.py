@@ -65,9 +65,11 @@ def _reliability_html(rel: dict) -> str:
     dv = rel.get("environment_diversity") or {}
     radius = rel.get("radius_m")
     rlabel = "1km" if radius == 1000 else (f"{radius}m" if radius else "")
+    _head = {"높음": "추천 근거가 안정적인 구간", "보통": "현장 확인 권장 구간",
+             "낮음": "현장 확인 필요 구간", "분석 제한": "신뢰도 정보 제한"}.get(ov.get("level"), "신뢰도 분석")
     return f"""
   <h2>8. 추천 신뢰도 분석</h2>
-  <p class="note"><b>종합 추천 신뢰도: {_html_value(ov.get('level'))}</b><br>{_html_value(ov.get('message'))}</p>
+  <p class="note"><b>{escape(_head)}</b><br>{_html_value(ov.get('message'))}</p>
   <table>
     {_row("SDM 확률 차이 신뢰도", gap.get('level'))}
     {_row(f"주변 임분 일치도(반경 {rlabel})", nb.get('level'))}
@@ -376,8 +378,10 @@ def create_pdf_report(result: dict) -> bytes:
     rel = d.get("reliability") or {}
     if rel:
         ov = rel.get("overall_reliability") or {}
+        _head = {"높음": "추천 근거가 안정적인 구간", "보통": "현장 확인 권장 구간",
+                 "낮음": "현장 확인 필요 구간", "분석 제한": "신뢰도 정보 제한"}.get(ov.get("level"), "신뢰도 분석")
         story.append(Paragraph("8. 추천 신뢰도 분석", h2))
-        story.append(para(f"종합 추천 신뢰도: {_plain(ov.get('level'))} — {_plain(ov.get('message'))}"))
+        story.append(para(f"{_head} — {_plain(ov.get('message'))}"))
         for label, sub in (("SDM 확률 차이", rel.get("sdm_probability_gap")),
                            ("주변 임분 일치도", rel.get("neighbor_agreement")),
                            ("환경 다양성", rel.get("environment_diversity"))):

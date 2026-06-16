@@ -1,4 +1,5 @@
 streamlit==1.49.1
+streamlit-js-eval>=0.1.7   # 데스크탑 브라우저 GPS(현재 위치 가져오기). 데스크탑에서만 호출됨
 
 numpy>=1.26
 pandas>=2.0
