@@ -189,6 +189,26 @@ EXIF 부호 처리, 래스터 경계검사, 기후대 판정, 추천 랭킹, end
 
 ---
 
+## 모델 검증지표 (Cross Validation, 데스크탑)
+
+앱은 실행 중에 CV를 계산하지 않습니다(안정성). CV는 **사전 계산 → JSON 저장 → 앱은 읽기만** 합니다.
+
+```bash
+# 1) CV 결과를 새로(또는 데이터 변경 시) 계산  →  data/derived/model_eval_cv_results.json
+python scripts/evaluate_models_cv.py                  # 기본 샘플 5000, 5-fold
+python scripts/evaluate_models_cv.py --samples 8000 --folds 5   # 옵션
+
+# 2) 앱 실행 (CV 계산 없이 JSON만 표시)
+streamlit run app/streamlit_app.py    # 또는 ForestAI_확실실행.bat 더블클릭
+```
+
+- 계산 항목: RF / HGB / RF+HGB 앙상블 × (Stratified K-Fold CV, Spatial Block CV) — 평균±표준편차.
+- 결과 화면 **"📊 모델 검증지표"** 에 Random split·Spatial block split(런타임)과 함께 한 표로 표시됩니다.
+- CV JSON이 없으면 안내문만 뜨고 Random/Spatial 표는 정상 표시됩니다(앱 비중단).
+- `.bat`은 앱 실행만 하며 CV를 자동 계산하지 않습니다.
+
+---
+
 ## 한계와 주의
 
 - 수종 KB(고도·기후대 범위)는 산림청 적지적수·문헌 기반의 **합리적 추정치**입니다.

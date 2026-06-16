@@ -794,17 +794,29 @@ if res is not None:
             st.caption("· 병해충 발생 이력이 있는 지역은 초기 모니터링을 강화하세요.")
             st.caption("· 최근 조림·숲가꾸기 이력과 충돌하지 않도록 관리 계획을 확인하세요.")
 
-    # --- SDM 성능 비교 (Random / Spatial block split, 데스크탑 compare 모드) ---
+    # --- 모델 검증지표 (런타임 Random/Spatial + 사전계산 CV JSON) ---
     _cmp = res.get("sdm_comparison")
     if _cmp and _cmp.get("reports"):
-        st.subheader("📊 SDM 성능 비교 (RF / HGB / 앙상블 · Random / Spatial)")
-        if not _cmp.get("hgb_ok"):
-            st.warning("HGB/앙상블 학습 실패로 RF 단독 모델을 사용했습니다.")
         _names = {"rf": "RF", "hgb": "HGB", "rf_hgb": "RF+HGB Ensemble"}
-        _splits = {"random": "Random split", "spatial": "Spatial block split"}
+        _splitname = {"random": "Random split", "spatial": "Spatial block split"}
         _chosen = _cmp.get("chosen_key")
         _reps = _cmp.get("reports") or {}
         import pandas as _pd
+
+        def _f3(v):
+            return f"{v:.3f}" if isinstance(v, (int, float)) else "-"
+
+        def _ms(m, sd):
+            if m is None:
+                return "-"
+            return f"{m:.3f}" + (f" ± {sd:.3f}" if sd is not None else "")
+
+        st.subheader("📊 모델 검증지표")
+        st.caption("· Random split: 단일 분할 성능  · Spatial block split: 공간 분리 일반화  "
+                   "· Stratified K-Fold CV: 반복 검증 안정성  · Spatial Block CV: 공간 블록 반복 검증")
+        if not _cmp.get("hgb_ok"):
+            st.warning("HGB/앙상블 학습 실패로 RF 단독 모델을 사용했습니다.")
+
         _rows = []
         for _sp in ("random", "spatial"):
             _sr = _reps.get(_sp) or {}
@@ -813,37 +825,67 @@ if res is not None:
                 if not _r:
                     continue
                 _rows.append({
-                    "Model": _names[_k] + (" ✅" if (_sp == "random" and _k == _chosen) else ""),
-                    "Split": _splits[_sp],
-                    "Accuracy": _r.get("accuracy"), "F1 macro": _r.get("f1_macro"),
-                    "F1 weighted": _r.get("f1_weighted"), "Top-3": _r.get("top3_accuracy"),
-                    "학습표본": _r.get("n_train"), "수종수": _r.get("n_classes"),
+                    "모델": _names[_k] + (" ✅" if (_sp == "random" and _k == _chosen) else ""),
+                    "검증 방식": _splitname[_sp],
+                    "Accuracy": _f3(_r.get("accuracy")), "F1 macro": _f3(_r.get("f1_macro")),
+                    "F1 weighted": _f3(_r.get("f1_weighted")), "Top-3": _f3(_r.get("top3_accuracy")),
+                    "표준편차": "-", "학습표본": _r.get("n_train"), "수종수": _r.get("n_classes"),
+                })
+        # 사전계산 CV 결과(JSON) 병합
+        _cv = None
+        try:
+            _cvp = Path(real_dir) / "derived" / "model_eval_cv_results.json"
+            if _cvp.exists():
+                _cv = json.loads(_cvp.read_text(encoding="utf-8"))
+        except Exception:  # noqa: BLE001
+            _cv = None
+        if _cv and _cv.get("results"):
+            for _r in _cv["results"]:
+                _rows.append({
+                    "모델": _r.get("model"), "검증 방식": _r.get("validation_type"),
+                    "Accuracy": _ms(_r.get("accuracy_mean"), _r.get("accuracy_std")),
+                    "F1 macro": _ms(_r.get("f1_macro_mean"), _r.get("f1_macro_std")),
+                    "F1 weighted": _ms(_r.get("f1_weighted_mean"), _r.get("f1_weighted_std")),
+                    "Top-3": _ms(_r.get("top3_accuracy_mean"), _r.get("top3_accuracy_std")),
+                    "표준편차": (f"±{_r.get('accuracy_std')}" if _r.get("accuracy_std") is not None else "-"),
+                    "학습표본": _cv.get("n_samples"), "수종수": _cv.get("n_species"),
                 })
         if _rows:
             st.dataframe(_pd.DataFrame(_rows), hide_index=True, use_container_width=True)
-        if not _reps.get("spatial"):
-            st.caption("※ Spatial block split은 데이터 분포상 계산이 제한되어 Random split만 표시됩니다.")
+        if _cv is None:
+            st.info("Cross Validation 결과 파일을 찾지 못했습니다. `python scripts/evaluate_models_cv.py`를 "
+                    "먼저 실행하면 반복 검증 결과를 확인할 수 있습니다.")
         st.caption(f"현재 추천에 실제 사용된 모델: **{_names.get(_chosen, _chosen)}** (Random split 기준)")
+
         _psf = _cmp.get("per_species_f1") or {}
         if _psf:
-            with st.expander("수종별 F1-score 보기"):
-                st.dataframe(_pd.DataFrame([{"수종": _k2, "F1": _v2} for _k2, _v2 in _psf.items()]),
-                             hide_index=True, use_container_width=True)
+            with st.expander("수종별 F1-score 보기 (단일분할 / CV평균)"):
+                _pf = [{"수종": _k2, "F1(단일분할)": _v2} for _k2, _v2 in _psf.items()]
+                if _cv and _cv.get("per_species_f1"):
+                    _cvmap = {x.get("species"): x for x in _cv["per_species_f1"]}
+                    for _row in _pf:
+                        _c = _cvmap.get(_row["수종"])
+                        _row["F1(CV평균)"] = _c.get("f1_mean") if _c else None
+                        _row["support"] = _c.get("support") if _c else None
+                st.dataframe(_pd.DataFrame(_pf), hide_index=True, use_container_width=True)
         _conf = _cmp.get("confusion")
         if _conf and _conf.get("matrix"):
             with st.expander("혼동 행렬(confusion matrix) 보기"):
                 _lab = _conf.get("labels") or []
-                st.caption("행=실제, 열=예측")
+                st.caption("행=실제, 열=예측 (단일분할 기준)")
                 st.dataframe(_pd.DataFrame(_conf["matrix"], index=_lab, columns=_lab),
                              use_container_width=True)
         with st.expander("사용 피처 목록 보기"):
             _feats = ((_reps.get("random") or {}).get(_chosen) or {}).get("features") or _cmp.get("feature_names") or []
             st.caption(", ".join(map(str, _feats)) if _feats else "정보 없음")
-        st.caption(
-            "본 서비스는 단일 수종을 정답처럼 제시하는 것이 아니라, 현장 의사결정을 위한 후보 수종 추천을 "
-            "목표로 합니다. 따라서 1순위 Accuracy와 함께 Top-3 정확도를 주요 성능지표로 활용했습니다. "
-            "또한 Random split 성능과 Spatial block split 성능을 함께 제시하여 공간적으로 분리된 지역에서도 "
-            "추천 모델이 어느 정도 일반화되는지 확인했습니다.")
+
+        st.caption("본 서비스는 단일 수종을 정답처럼 제시하는 것이 아니라, 현장 의사결정을 위한 후보 수종 추천을 "
+                   "목표로 합니다. 따라서 1순위 Accuracy와 함께 Top-3 Accuracy를 주요 검증지표로 활용했습니다.")
+        st.caption("모델 성능은 단일 분할 결과만으로 판단하지 않고, Random split, Stratified K-Fold Cross "
+                   "Validation, Spatial block split, Spatial Block Cross Validation을 함께 사용했습니다. 이를 통해 "
+                   "일반적인 예측 성능, 반복 검증에 따른 안정성, 공간적으로 분리된 지역에 대한 일반화 가능성을 함께 확인했습니다.")
+        st.caption("Spatial 기반 검증 성능이 Random split보다 낮게 나타날 수 있으나, 이는 실제 현장 적용 시 "
+                   "공간적 일반화 가능성을 더 보수적으로 평가하기 위한 과정입니다.")
 
     # --- 산림청 공식 조림지도 비교 (데스크탑 전용) ---
     _aff = res.get("afforestation")
