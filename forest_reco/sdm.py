@@ -208,22 +208,29 @@ class SpeciesDistributionModel:
     # ---- 평가 지표 ----
     @staticmethod
     def _metrics_from_proba(proba, yte, classes) -> dict:
-        """확률행렬(앙상블 평균 또는 단일)로 accuracy/f1/top3 산출."""
+        """확률행렬(앙상블 평균 또는 단일)로 accuracy/f1/top3 산출.
+
+        공간분할은 검증셋에 학습에 없던 수종이 섞일 수 있어, top-3는 학습 클래스에
+        속한 표본만으로 계산하고 f1은 zero_division=0으로 안전 처리한다.
+        """
         from sklearn.metrics import accuracy_score, f1_score
         classes = list(classes)
+        yte = np.asarray(yte)
         pred = np.array(classes)[np.argmax(proba, axis=1)]
         top3 = None
         try:
             from sklearn.metrics import top_k_accuracy_score
+            mask = np.isin(yte, classes)
             k = min(3, len(classes) - 1)
-            if k >= 1:
-                top3 = round(float(top_k_accuracy_score(yte, proba, k=k, labels=classes)), 3)
+            if mask.any() and k >= 1:
+                top3 = round(float(top_k_accuracy_score(
+                    yte[mask], proba[mask], k=k, labels=classes)), 3)
         except Exception:  # noqa: BLE001
             top3 = None
         return {
             "accuracy": round(float(accuracy_score(yte, pred)), 3),
-            "f1_macro": round(float(f1_score(yte, pred, average="macro")), 3),
-            "f1_weighted": round(float(f1_score(yte, pred, average="weighted")), 3),
+            "f1_macro": round(float(f1_score(yte, pred, average="macro", zero_division=0)), 3),
+            "f1_weighted": round(float(f1_score(yte, pred, average="weighted", zero_division=0)), 3),
             "top3_accuracy": top3,
         }
 
@@ -349,48 +356,96 @@ class SpeciesDistributionModel:
                    report=report, feature_names=feat_names)
 
     # ---- 3개 모델 비교(RF / HGB / RF+HGB) — 피처는 1회만 생성 ----
-    @classmethod
-    def train_comparison(cls, forest_map, terrain, n_samples: int = 8000, min_class: int = 15,
-                         random_state: int = 42, test_size: float = 0.2, top_species: int = 5,
-                         observed=None, site_map=None, precip=None, management=None) -> dict:
-        from sklearn.model_selection import train_test_split
-        from sklearn.utils.class_weight import compute_sample_weight
-        X, y, feat_names = cls._build_xy(forest_map, terrain, n_samples, min_class,
-                                         random_state, None, top_species,
-                                         observed, site_map, precip, None, management)
-        Xtr, Xte, ytr, yte = train_test_split(
-            X, y, test_size=test_size, random_state=random_state, stratify=y)
-        sw = compute_sample_weight("balanced", ytr)
-        meta = {"n_total": int(len(X)), "n_classes": int(len(set(y))),
-                "classes": sorted(str(c) for c in set(y)), "features": feat_names}
+    @staticmethod
+    def _spatial_groups(X, block_deg: float = 0.1):
+        """lat/lon(피처 4·5열)으로 공간 블록 그룹 id. 가까운 표본이 같은 블록에 묶여
+        학습/검증이 공간적으로 분리되도록 한다(공간 일반화 평가용)."""
+        lat = np.floor(X[:, 4] / block_deg).astype(np.int64)
+        lon = np.floor(X[:, 5] / block_deg).astype(np.int64)
+        return lat * 100000 + lon
 
+    @classmethod
+    def _fit_eval(cls, Xtr, ytr, Xte, yte, feat_names, random_state):
+        """한 split에서 rf/hgb/앙상블 학습·평가 → (reports, models, hgb_ok, rf_clf)."""
+        from sklearn.utils.class_weight import compute_sample_weight
+        sw = compute_sample_weight("balanced", ytr)
+        ncls = int(len(set(ytr) | set(yte)))
         rf = _make_estimator("rf", random_state)
         rf.fit(Xtr, ytr)
         rf_classes = [str(c) for c in rf.classes_]
-        rf_report = {"algos": ["rf"], "n_train": int(len(Xtr)),
-                     **cls._metrics_from_proba(rf.predict_proba(Xte), yte, rf.classes_), **meta}
-        reports = {"rf": rf_report}
-        models = {"rf": cls([("rf", rf)], rf_classes, len(Xtr), rf_report, feat_names)}
-
+        reps = {"rf": {"algos": ["rf"], "n_train": int(len(Xtr)), "n_classes": ncls,
+                       **cls._metrics_from_proba(rf.predict_proba(Xte), yte, rf.classes_)}}
+        mdls = {"rf": cls([("rf", rf)], rf_classes, len(Xtr), reps["rf"], feat_names)}
         hgb_ok = False
         try:
             hgb = _make_estimator("hgb", random_state)
             hgb.fit(Xtr, ytr, sample_weight=sw)
-            hgb_report = {"algos": ["hgb"], "n_train": int(len(Xtr)),
-                          **cls._metrics_from_proba(hgb.predict_proba(Xte), yte, hgb.classes_), **meta}
+            reps["hgb"] = {"algos": ["hgb"], "n_train": int(len(Xtr)), "n_classes": ncls,
+                           **cls._metrics_from_proba(hgb.predict_proba(Xte), yte, hgb.classes_)}
             ens_proba = np.mean([rf.predict_proba(Xte), hgb.predict_proba(Xte)], axis=0)
-            ens_report = {"algos": ["rf", "hgb"], "n_train": int(len(Xtr)),
-                          **cls._metrics_from_proba(ens_proba, yte, rf.classes_), **meta}
-            reports["hgb"] = hgb_report
-            reports["rf_hgb"] = ens_report
-            models["hgb"] = cls([("hgb", hgb)], [str(c) for c in hgb.classes_], len(Xtr), hgb_report, feat_names)
-            models["rf_hgb"] = cls([("rf", rf), ("hgb", hgb)], rf_classes, len(Xtr), ens_report, feat_names)
+            reps["rf_hgb"] = {"algos": ["rf", "hgb"], "n_train": int(len(Xtr)), "n_classes": ncls,
+                              **cls._metrics_from_proba(ens_proba, yte, rf.classes_)}
+            mdls["hgb"] = cls([("hgb", hgb)], [str(c) for c in hgb.classes_], len(Xtr), reps["hgb"], feat_names)
+            mdls["rf_hgb"] = cls([("rf", rf), ("hgb", hgb)], rf_classes, len(Xtr), reps["rf_hgb"], feat_names)
             hgb_ok = True
         except Exception:  # noqa: BLE001 - HGB 실패 시 RF 단독으로 폴백
             hgb_ok = False
+        return reps, mdls, hgb_ok, rf
+
+    # ---- 3개 모델 × 2개 검증(Random / Spatial block) 비교 — 피처는 1회만 생성 ----
+    @classmethod
+    def train_comparison(cls, forest_map, terrain, n_samples: int = 8000, min_class: int = 15,
+                         random_state: int = 42, test_size: float = 0.2, top_species: int = 5,
+                         observed=None, site_map=None, precip=None, management=None) -> dict:
+        from sklearn.model_selection import train_test_split, GroupShuffleSplit
+        X, y, feat_names = cls._build_xy(forest_map, terrain, n_samples, min_class,
+                                         random_state, None, top_species,
+                                         observed, site_map, precip, None, management)
+        base = {"n_total": int(len(X)), "classes": sorted(str(c) for c in set(y)), "features": feat_names}
+
+        # 1) Random split — 추천에 사용하는 모델이 학습되는 split
+        Xtr, Xte, ytr, yte = train_test_split(
+            X, y, test_size=test_size, random_state=random_state, stratify=y)
+        rand_reps, models, hgb_ok, _ = cls._fit_eval(Xtr, ytr, Xte, yte, feat_names, random_state)
+        for r in rand_reps.values():
+            r.update(base)
+
+        # 2) Spatial block split — 가까운 위치가 학습/검증에 섞이지 않게(공간 일반화)
+        spat_reps = {}
+        try:
+            groups = cls._spatial_groups(X)
+            if len(set(groups.tolist())) >= 3:
+                gss = GroupShuffleSplit(n_splits=1, test_size=test_size, random_state=random_state)
+                tr_idx, te_idx = next(gss.split(X, y, groups))
+                if len(set(y[tr_idx])) >= 2 and len(te_idx) > 0:
+                    spat_reps, _, _, _ = cls._fit_eval(
+                        X[tr_idx], y[tr_idx], X[te_idx], y[te_idx], feat_names, random_state)
+                    for r in spat_reps.values():
+                        r.update({"n_total": int(len(X)), "features": feat_names})
+        except Exception:  # noqa: BLE001 - 공간분할 실패해도 Random 결과는 제공
+            spat_reps = {}
+
         chosen_key = "rf_hgb" if hgb_ok else "rf"
-        return {"reports": reports, "models": models, "chosen": models[chosen_key],
-                "chosen_key": chosen_key, "hgb_ok": hgb_ok, "feature_names": feat_names}
+        chosen = models[chosen_key]
+
+        # 3) 수종별 F1 + confusion matrix (chosen 모델, Random split)
+        per_species_f1, confusion = {}, None
+        try:
+            from sklearn.metrics import f1_score, confusion_matrix
+            classes = list(chosen.classes)
+            proba = np.mean([clf.predict_proba(Xte) for _, clf in chosen.estimators], axis=0)
+            pred = np.array(classes)[np.argmax(proba, axis=1)]
+            f1s = f1_score(yte, pred, labels=classes, average=None, zero_division=0)
+            per_species_f1 = {c: round(float(s), 3) for c, s in zip(classes, f1s)}
+            cm = confusion_matrix(yte, pred, labels=classes)
+            confusion = {"labels": classes, "matrix": cm.tolist()}
+        except Exception:  # noqa: BLE001
+            per_species_f1, confusion = {}, None
+
+        return {"reports": {"random": rand_reps, "spatial": spat_reps},
+                "models": models, "chosen": chosen, "chosen_key": chosen_key,
+                "hgb_ok": hgb_ok, "feature_names": feat_names,
+                "per_species_f1": per_species_f1, "confusion": confusion}
 
     # ---- 예측 ----
     def predict(self, elevation, slope, aspect_deg, lat, lon=None,
@@ -488,7 +543,7 @@ def load_or_train_comparison(forest_map, terrain, *, settings, n_samples, top_sp
     models_dir = Path(settings.data_dir) / "models"
     flags = "".join(k for k, v in (("o", observed), ("s", site_map),
                                    ("p", precip), ("m", management)) if v)
-    signature = f"n{n_samples}_t{top_species}_{flags}"
+    signature = f"v2_n{n_samples}_t{top_species}_{flags}"  # v2: random+spatial 비교 구조
     meta_path = models_dir / "sdm_comparison_meta.json"
     paths = {k: models_dir / v for k, v in _CMP_FILES.items()}
 
@@ -509,7 +564,8 @@ def load_or_train_comparison(forest_map, terrain, *, settings, n_samples, top_sp
                 return {"reports": meta["reports"], "models": models,
                         "chosen": models[chosen_key], "chosen_key": chosen_key,
                         "hgb_ok": hgb_ok, "feature_names": meta.get("feature_names"),
-                        "cached": True}
+                        "per_species_f1": meta.get("per_species_f1", {}),
+                        "confusion": meta.get("confusion"), "cached": True}
     except Exception:  # noqa: BLE001 - 캐시 손상 시 재학습
         pass
 
@@ -523,7 +579,9 @@ def load_or_train_comparison(forest_map, terrain, *, settings, n_samples, top_sp
         meta_path.write_text(json.dumps({
             "signature": signature, "reports": comp["reports"],
             "chosen_key": comp["chosen_key"], "hgb_ok": comp["hgb_ok"],
-            "feature_names": comp["feature_names"]}, ensure_ascii=False), encoding="utf-8")
+            "feature_names": comp["feature_names"],
+            "per_species_f1": comp.get("per_species_f1", {}),
+            "confusion": comp.get("confusion")}, ensure_ascii=False), encoding="utf-8")
     except Exception:  # noqa: BLE001 - 저장 실패해도 메모리 결과는 사용
         pass
     comp["cached"] = False

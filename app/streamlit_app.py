@@ -32,6 +32,7 @@ from forest_reco.llm import AUDIENCES  # noqa: E402
 from forest_reco.config import Settings  # noqa: E402
 from forest_reco.report import create_report, create_pdf_report, report_filename  # noqa: E402
 from forest_reco.validation import evaluate_validation  # noqa: E402
+from forest_reco.rationale import build_rationale  # noqa: E402
 
 st.set_page_config(page_title="산림 수종 추천 AI", page_icon="🌲",
                    layout="centered", initial_sidebar_state="collapsed")
@@ -342,10 +343,17 @@ browser_location_ok = False
 
 with tab_gps:
     if _enable_gps:
-        st.markdown("<div class='input-card'>데스크탑 로컬(localhost) 실행에서 '현재 위치 가져오기'를 누르고 브라우저 위치 권한을 허용하면 현재 좌표가 자동으로 입력됩니다.</div>",
+        st.markdown("<div class='input-card'>'현재 위치 가져오기'를 누르고 브라우저 위치 권한을 허용하면 현재 좌표가 자동 입력됩니다.</div>",
                     unsafe_allow_html=True)
-        if st.button("📍 현재 위치 가져오기"):
+        st.caption("⚠ 브라우저 GPS는 HTTPS 또는 localhost(127.0.0.1) 환경에서만 정상 동작합니다. "
+                   "http://192.168... 같은 주소에서는 브라우저 보안정책으로 막힐 수 있습니다.")
+        _gc1, _gc2 = st.columns(2)
+        if _gc1.button("📍 현재 위치 가져오기"):
             ss["_gps_request"] = True
+        if _gc2.button("🧭 예시 좌표 사용(춘천)"):
+            ss.sel_lat, ss.sel_lon, ss.sel_source = 37.95, 127.66, "example"
+            ss["_gps_request"] = False
+            st.success("예시 좌표(춘천 37.95, 127.66)를 분석 위치로 설정했습니다.")
         if ss.get("_gps_request"):
             try:
                 from streamlit_js_eval import get_geolocation
@@ -358,13 +366,16 @@ with tab_gps:
                     ss.browser_accuracy_m = _coords.get("accuracy")
                     ss["_gps_request"] = False
                     _acc = _coords.get("accuracy")
-                    st.success(f"현재 위치를 가져왔습니다. 위도: {ss.sel_lat:.6f}, 경도: {ss.sel_lon:.6f}"
-                               + (f", 정확도: {_acc:.0f} m" if _acc else ""))
+                    st.success("현재 위치 좌표를 불러왔습니다. 이 좌표를 기준으로 산림공간정보 분석을 진행할 수 있습니다. "
+                               + f"(위도 {ss.sel_lat:.6f}, 경도 {ss.sel_lon:.6f}"
+                               + (f", 정확도 {_acc:.0f} m)" if _acc else ")"))
                 else:
-                    st.info("브라우저에서 위치 권한을 허용해주세요. (응답 대기 중 — 허용 후 잠시 기다리세요)")
+                    st.info("브라우저에서 위치 권한을 허용해주세요. (허용 후 잠시 기다리면 좌표가 표시됩니다)")
             except Exception:
-                st.warning("브라우저 위치 권한을 사용할 수 없습니다. localhost 실행 여부와 위치 권한을 확인하거나 '좌표 입력' 탭을 사용하세요.")
-        st.caption("권한 거부·미지원·타임아웃 시에도 앱은 멈추지 않습니다. '좌표 입력' 또는 '숲 사진'(EXIF) 탭으로 분석하세요.")
+                st.warning("브라우저 위치 권한, HTTPS/localhost 환경, 또는 기기 위치서비스 설정 문제로 "
+                           "GPS 좌표를 불러오지 못했습니다. 사진 GPS, 수동 좌표 입력, 예시 좌표를 이용해 분석할 수 있습니다.")
+        st.caption("폴백 순서: ① 브라우저 GPS → ② 사진 EXIF GPS('숲 사진' 탭) → "
+                   "③ 좌표 직접 입력('좌표 입력' 탭) → ④ 예시 좌표 버튼")
     else:
         st.markdown("<div class='input-card'>브라우저 GPS 자동 수집은 모바일/Cloud 환경에서 화면 오류를 일으킬 수 있어 비활성화되어 있습니다.</div>",
                     unsafe_allow_html=True)
@@ -475,19 +486,25 @@ run = st.button("🌳 적합 수종 분석하기")
 
 if run:
     if lat is None or lon is None:
-        st.error("먼저 위치를 입력하세요 (사진/GPS/좌표 중 하나).")
+        st.error("먼저 위치를 입력하세요. 브라우저 GPS, 사진 EXIF, 좌표 직접 입력, 예시 좌표 중 하나를 사용하세요.")
     elif not use_mock and not _is_gangwon_like(lat, lon):
-        st.error("현재 프로토타입은 강원도 지역 분석을 기준으로 합니다.")
+        st.error("입력 좌표가 현재 분석 가능한 강원도 데이터 범위를 벗어났습니다. "
+                 "강원도 내 좌표를 입력하거나 예시 좌표를 선택해주세요.")
     else:
-        sources = get_sources(use_mock, real_dir if (real_dir and not use_mock) else None)
-        with st.spinner("입지 분석 및 수종 추천 중… (ML 최초 사용 시 모델 학습으로 수십 초 소요)"):
-            res = analyze(lat=lat, lon=lon, goal=goal, audience=audience,
-                          sources=sources, gemini_api_key=(gemini_key or None),
-                          top_k=6, use_sdm=use_sdm,
-                          radius_m=radius_m, compute_reliability=desktop_mode)
-            if isinstance(res, dict) and isinstance(res.get("location"), dict):
-                res["location"]["source"] = loc_source
-        st.session_state["last_result"] = res
+        try:
+            sources = get_sources(use_mock, real_dir if (real_dir and not use_mock) else None)
+            with st.spinner("입지 분석 및 수종 추천 중… (ML 최초 사용 시 모델 학습으로 수십 초 소요)"):
+                res = analyze(lat=lat, lon=lon, goal=goal, audience=audience,
+                              sources=sources, gemini_api_key=(gemini_key or None),
+                              top_k=6, use_sdm=use_sdm,
+                              radius_m=radius_m, compute_reliability=desktop_mode)
+                if isinstance(res, dict) and isinstance(res.get("location"), dict):
+                    res["location"]["source"] = loc_source
+            st.session_state["last_result"] = res
+        except Exception as _e:  # noqa: BLE001 - 앱이 멈추지 않도록 친절 안내
+            st.error("분석 중 문제가 발생했습니다. 데이터 폴더 경로와 좌표를 확인하거나 "
+                     "예시 좌표로 다시 시도해주세요. 일부 데이터가 없어도 가능한 분석은 진행됩니다.")
+            st.caption(f"(참고: {type(_e).__name__})")
 
 # 결과 표시 — 세션에 저장된 결과를 사용해 rerun(탭·설정 변경) 후에도 유지된다.
 res = st.session_state.get("last_result")
@@ -501,6 +518,19 @@ if res is not None:
     if c_clear.button("🔄 초기화"):
         st.session_state.pop("last_result", None)
         st.rerun()
+
+    # --- 일부 데이터가 없을 때 친절 안내(해당 분석만 제외하고 계속 진행) ---
+    _dn = []
+    if res.get("forest_info") is None:
+        _dn.append("해당 좌표에서 임상도 정보를 찾지 못했습니다. 산림 외 지역이거나 데이터 공백 지역일 수 있습니다.")
+    if (res.get("terrain") or {}).get("고도") is None:
+        _dn.append("해당 위치의 DEM 값을 불러오지 못해 고도·경사·향 분석은 제외하고 진행합니다.")
+    if desktop_mode and res.get("afforestation") is None:
+        _dn.append("해당 위치에서 맞춤형조림지도 정보를 찾지 못해 공식 조림 비교는 제외하고 진행합니다.")
+    if desktop_mode and res.get("landslide") is None:
+        _dn.append("해당 위치의 산사태위험지도 값을 불러오지 못해 재해위험 분석은 제외하고 결과를 제공합니다.")
+    for _m0 in _dn:
+        st.caption("ℹ️ " + _m0)
 
     # --- 분석 위치 ---
     loc = res.get("location") or {}
@@ -764,6 +794,57 @@ if res is not None:
             st.caption("· 병해충 발생 이력이 있는 지역은 초기 모니터링을 강화하세요.")
             st.caption("· 최근 조림·숲가꾸기 이력과 충돌하지 않도록 관리 계획을 확인하세요.")
 
+    # --- SDM 성능 비교 (Random / Spatial block split, 데스크탑 compare 모드) ---
+    _cmp = res.get("sdm_comparison")
+    if _cmp and _cmp.get("reports"):
+        st.subheader("📊 SDM 성능 비교 (RF / HGB / 앙상블 · Random / Spatial)")
+        if not _cmp.get("hgb_ok"):
+            st.warning("HGB/앙상블 학습 실패로 RF 단독 모델을 사용했습니다.")
+        _names = {"rf": "RF", "hgb": "HGB", "rf_hgb": "RF+HGB Ensemble"}
+        _splits = {"random": "Random split", "spatial": "Spatial block split"}
+        _chosen = _cmp.get("chosen_key")
+        _reps = _cmp.get("reports") or {}
+        import pandas as _pd
+        _rows = []
+        for _sp in ("random", "spatial"):
+            _sr = _reps.get(_sp) or {}
+            for _k in ("rf", "hgb", "rf_hgb"):
+                _r = _sr.get(_k)
+                if not _r:
+                    continue
+                _rows.append({
+                    "Model": _names[_k] + (" ✅" if (_sp == "random" and _k == _chosen) else ""),
+                    "Split": _splits[_sp],
+                    "Accuracy": _r.get("accuracy"), "F1 macro": _r.get("f1_macro"),
+                    "F1 weighted": _r.get("f1_weighted"), "Top-3": _r.get("top3_accuracy"),
+                    "학습표본": _r.get("n_train"), "수종수": _r.get("n_classes"),
+                })
+        if _rows:
+            st.dataframe(_pd.DataFrame(_rows), hide_index=True, use_container_width=True)
+        if not _reps.get("spatial"):
+            st.caption("※ Spatial block split은 데이터 분포상 계산이 제한되어 Random split만 표시됩니다.")
+        st.caption(f"현재 추천에 실제 사용된 모델: **{_names.get(_chosen, _chosen)}** (Random split 기준)")
+        _psf = _cmp.get("per_species_f1") or {}
+        if _psf:
+            with st.expander("수종별 F1-score 보기"):
+                st.dataframe(_pd.DataFrame([{"수종": _k2, "F1": _v2} for _k2, _v2 in _psf.items()]),
+                             hide_index=True, use_container_width=True)
+        _conf = _cmp.get("confusion")
+        if _conf and _conf.get("matrix"):
+            with st.expander("혼동 행렬(confusion matrix) 보기"):
+                _lab = _conf.get("labels") or []
+                st.caption("행=실제, 열=예측")
+                st.dataframe(_pd.DataFrame(_conf["matrix"], index=_lab, columns=_lab),
+                             use_container_width=True)
+        with st.expander("사용 피처 목록 보기"):
+            _feats = ((_reps.get("random") or {}).get(_chosen) or {}).get("features") or _cmp.get("feature_names") or []
+            st.caption(", ".join(map(str, _feats)) if _feats else "정보 없음")
+        st.caption(
+            "본 서비스는 단일 수종을 정답처럼 제시하는 것이 아니라, 현장 의사결정을 위한 후보 수종 추천을 "
+            "목표로 합니다. 따라서 1순위 Accuracy와 함께 Top-3 정확도를 주요 성능지표로 활용했습니다. "
+            "또한 Random split 성능과 Spatial block split 성능을 함께 제시하여 공간적으로 분리된 지역에서도 "
+            "추천 모델이 어느 정도 일반화되는지 확인했습니다.")
+
     # --- 산림청 공식 조림지도 비교 (데스크탑 전용) ---
     _aff = res.get("afforestation")
     _off = (res.get("reliability") or {}).get("official_afforestation") or {}
@@ -851,6 +932,16 @@ if res is not None:
                 st.caption(" · ".join(_bits))
             st.caption(dv.get("message", ""))
 
+    # --- AI 추천 근거 (왜 이 수종인가) ---
+    _rat = build_rationale(res)
+    if _rat.get("summary") or _rat.get("bullets"):
+        st.subheader("🧭 AI 추천 근거")
+        if _rat.get("summary"):
+            st.markdown(f"<div class='mobile-hero'>{html_escape(str(_rat['summary']))}</div>",
+                        unsafe_allow_html=True)
+        for _b in _rat.get("bullets") or []:
+            st.caption("· " + str(_b))
+
     # --- 관리 방향 (데스크탑 전용, 규칙기반) ---
     if res.get("afforestation") or res.get("forest_function") or res.get("landslide"):
         st.subheader("📋 관리 방향")
@@ -873,38 +964,6 @@ if res is not None:
             _mgmt.append("특이 관리 사항은 확인되지 않았습니다. 식재 전 현장 확인을 권장합니다.")
         for _m in _mgmt:
             st.caption("· " + _m)
-
-    # --- SDM 성능 비교 (데스크탑 compare 모드에서만 result에 존재) ---
-    _cmp = res.get("sdm_comparison")
-    if _cmp and _cmp.get("reports"):
-        st.subheader("📊 SDM 성능 비교 (RF / HGB / 앙상블)")
-        if not _cmp.get("hgb_ok"):
-            st.warning("HGB/앙상블 학습 실패로 RF 단독 모델을 사용했습니다.")
-        _names = {"rf": "RF", "hgb": "HGB", "rf_hgb": "RF+HGB Ensemble"}
-        _chosen = _cmp.get("chosen_key")
-        _reps = _cmp["reports"]
-        import pandas as _pd
-        _rows = []
-        for _k in ("rf", "hgb", "rf_hgb"):
-            _r = _reps.get(_k)
-            if not _r:
-                continue
-            _rows.append({
-                "모델": _names[_k] + (" ✅사용" if _k == _chosen else ""),
-                "Accuracy": _r.get("accuracy"),
-                "F1 macro": _r.get("f1_macro"),
-                "F1 weighted": _r.get("f1_weighted"),
-                "Top-3": _r.get("top3_accuracy"),
-                "학습표본": _r.get("n_train"),
-                "수종수": _r.get("n_classes"),
-            })
-        if _rows:
-            st.dataframe(_pd.DataFrame(_rows), hide_index=True, use_container_width=True)
-        st.caption(f"현재 추천에 실제 사용된 모델: **{_names.get(_chosen, _chosen)}** "
-                   "(성능 리포트의 기준 모델)")
-        with st.expander("사용 피처 목록 보기"):
-            _feats = (_reps.get(_chosen) or {}).get("features") or []
-            st.caption(", ".join(map(str, _feats)) if _feats else "정보 없음")
 
     # --- LLM/폴백 설명 ---
     st.subheader("📝 AI 설명")

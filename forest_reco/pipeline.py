@@ -472,6 +472,9 @@ def analyze(
                         "reports": comp.get("reports"),
                         "chosen_key": comp.get("chosen_key"),
                         "hgb_ok": comp.get("hgb_ok"),
+                        "per_species_f1": comp.get("per_species_f1") or {},
+                        "confusion": comp.get("confusion"),
+                        "feature_names": comp.get("feature_names"),
                     }
             except Exception:  # noqa: BLE001
                 result["sdm_comparison"] = None

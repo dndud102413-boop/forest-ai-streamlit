@@ -107,6 +107,64 @@ def _official_html(d: dict) -> str:
     return f"<h2>9. 공식 데이터 비교 · 재해</h2><table>{rows}</table>"
 
 
+_CAUTION = ("본 결과는 임상도, DEM, 토양·기후자료, 맞춤형조림지도, 산사태위험지도 및 SDM 분석 "
+            "결과를 기반으로 산출된 의사결정 지원 참고자료입니다. 최종 조림, 벌채, 숲가꾸기, 작업로 "
+            "개설 여부는 현장 토양, 수분, 병해충, 접근성 및 관계기관 검토를 통해 결정해야 합니다.")
+_FIELD_ITEMS = "토양 깊이 · 수분/배수 조건 · 병해충 흔적 · 산사태 위험 · 작업로 접근성"
+
+
+def _used_data_list(result: dict) -> list[str]:
+    used = []
+    if result.get("forest_info") is not None or result.get("recommendations"):
+        used.append("임상도")
+    if (result.get("terrain") or {}).get("고도") is not None:
+        used.append("DEM(고도·경사·향)")
+    if result.get("site_info"):
+        used.append("산림입지토양도")
+    if result.get("observed_climate"):
+        used.append("산악기상 실측기후")
+    if result.get("precip_grid"):
+        used.append("강수격자")
+    if result.get("afforestation"):
+        used.append("맞춤형조림지도")
+    if result.get("forest_function"):
+        used.append("산림기능구분도")
+    if result.get("landslide"):
+        used.append("산사태위험지도")
+    return used
+
+
+def _rationale_html(result: dict) -> str:
+    try:
+        from .rationale import build_rationale
+        rat = build_rationale(result)
+    except Exception:  # noqa: BLE001
+        return ""
+    if not (rat.get("summary") or rat.get("bullets")):
+        return ""
+    items = "".join(f"<li>{escape(str(b))}</li>" for b in rat.get("bullets", []))
+    return (f'<h2>9-1. 추천 근거</h2><p class="note">{escape(str(rat.get("summary", "")))}</p>'
+            + (f"<ul>{items}</ul>" if items else ""))
+
+
+def _method_summary_html(result: dict) -> str:
+    loc = result.get("location") or {}
+    cmp = result.get("sdm_comparison") or {}
+    chosen = {"rf": "RF", "hgb": "HGB", "rf_hgb": "RF+HGB Ensemble"}.get(cmp.get("chosen_key"), "SDM")
+    reps = cmp.get("reports") or {}
+    splits = [n for k, n in (("random", "Random split"), ("spatial", "Spatial block split")) if reps.get(k)]
+    return (
+        "<h2>10. 분석 방법 요약</h2><table>"
+        + _row("분석 위치", f"위도 {loc.get('lat')}, 경도 {loc.get('lon')} (WGS84 ↔ UTM-K 좌표계 변환 적용)")
+        + _row("사용 데이터", ", ".join(_used_data_list(result)) or NO_INFO)
+        + _row("AI / 모델", f"RF · HGB · RF+HGB Ensemble — SDM 기반 Top-3 수종추천 (현재 사용: {chosen})")
+        + _row("검증 방식", " / ".join(splits) or "Random split")
+        + _row("추천 신뢰도 구성", "SDM 확신도 · 주변 임분 일치도 · 환경 다양성 · 공식 조림지도 일치 여부")
+        + _row("현장 확인 필요 항목", _FIELD_ITEMS)
+        + "</table>"
+        + f'<h2>11. 주의사항</h2><p class="note">{escape(_CAUTION)}</p>')
+
+
 def _collect_report_data(result: dict) -> dict:
     return {
         "loc": result.get("location") or {},
@@ -231,6 +289,8 @@ def create_report(result: dict) -> str:
   </ul>
   {_reliability_html(d["reliability"])}
   {_official_html(d)}
+  {_rationale_html(result)}
+  {_method_summary_html(result)}
 </body>
 </html>"""
 
@@ -404,6 +464,34 @@ def create_pdf_report(result: dict) -> bytes:
         if ls:
             story.append(para(f"• 산사태 위험등급(지점): {_plain(ls.get('point_grade'))}등급 "
                               f"{_plain(ls.get('point_label'))} · 반경 고위험 {(ls.get('high_risk_ratio') or 0) * 100:.0f}%"))
+
+    try:
+        from .rationale import build_rationale
+        rat = build_rationale(result)
+    except Exception:  # noqa: BLE001
+        rat = {}
+    if rat.get("summary") or rat.get("bullets"):
+        story.append(Paragraph("9-1. 추천 근거", h2))
+        if rat.get("summary"):
+            story.append(para(rat["summary"]))
+        for b in rat.get("bullets", []):
+            story.append(para("• " + str(b)))
+
+    cmp = result.get("sdm_comparison") or {}
+    chosen = {"rf": "RF", "hgb": "HGB", "rf_hgb": "RF+HGB Ensemble"}.get(cmp.get("chosen_key"), "SDM")
+    reps = cmp.get("reports") or {}
+    splits = [n for k, n in (("random", "Random split"), ("spatial", "Spatial block split")) if reps.get(k)]
+    story.append(Paragraph("10. 분석 방법 요약", h2))
+    story.append(table([
+        ("분석 위치", f"위도 {loc.get('lat')}, 경도 {loc.get('lon')} (WGS84↔UTM-K 변환)", ""),
+        ("사용 데이터", ", ".join(_used_data_list(result)) or NO_INFO, ""),
+        ("AI / 모델", f"RF · HGB · RF+HGB Ensemble (사용: {chosen})", ""),
+        ("검증 방식", " / ".join(splits) or "Random split", ""),
+        ("신뢰도 구성", "SDM 확신도·주변 임분 일치도·환경 다양성·공식 조림 일치", ""),
+        ("현장 확인 항목", _FIELD_ITEMS, ""),
+    ]))
+    story.append(Paragraph("11. 주의사항", h2))
+    story.append(para(_CAUTION))
 
     buf = BytesIO()
     doc = SimpleDocTemplate(
