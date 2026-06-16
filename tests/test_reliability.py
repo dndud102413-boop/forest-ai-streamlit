@@ -1,7 +1,7 @@
 """reliability.py 순수 계산 함수 단위테스트(실데이터 불필요)."""
 from forest_reco.reliability import (
     sdm_probability_gap, neighbor_agreement, shannon_index,
-    environment_diversity, overall_reliability,
+    environment_diversity, overall_reliability, official_afforestation_agreement,
     LEVEL_HIGH, LEVEL_MID, LEVEL_LOW, LEVEL_NA,
 )
 
@@ -98,3 +98,32 @@ def test_overall_low():
 def test_overall_all_limited_is_limited():
     na = {"level": LEVEL_NA}
     assert overall_reliability(na, na, na)["level"] == LEVEL_NA
+
+
+def test_overall_with_official():
+    high = {"level": LEVEL_HIGH}
+    low_div = {"level": LEVEL_LOW}
+    assert overall_reliability(high, high, low_div, high)["level"] == LEVEL_HIGH
+
+
+# 5) 공식 조림지도 일치 -------------------------------------------------------
+def test_official_match_top1():
+    r = official_afforestation_agreement(["소나무", "굴참나무"], ["소나무", "신갈나무", "잣나무"], "소나무")
+    assert r["top1_match"] is True
+    assert r["level"] == LEVEL_HIGH
+
+
+def test_official_partial_match():
+    r = official_afforestation_agreement(["굴참나무", "신갈나무"], ["소나무", "신갈나무", "잣나무"], "소나무")
+    assert r["top1_match"] is False
+    assert "신갈나무" in r["matched"]
+    assert r["level"] == LEVEL_MID
+
+
+def test_official_no_match():
+    r = official_afforestation_agreement(["굴참나무", "상수리나무"], ["소나무", "잣나무", "낙엽송"], "소나무")
+    assert r["level"] == LEVEL_LOW
+
+
+def test_official_empty_is_limited():
+    assert official_afforestation_agreement([], ["소나무"], "소나무")["level"] == LEVEL_NA

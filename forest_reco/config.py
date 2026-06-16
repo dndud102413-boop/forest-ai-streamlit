@@ -57,6 +57,10 @@ class Settings:
     planting_gpkg_name: str = "gangwon_planting_light.gpkg"
     tending_gpkg_name: str = "gangwon_tending_light.gpkg"
     disease_gpkg_name: str = "gangwon_disease_points_light.gpkg"
+    # 신규 공공데이터(데스크탑 전용; light_mode에서는 로딩하지 않음)
+    afforestation_gpkg_name: str = "gangwon_afforestation_light.gpkg"  # 맞춤형조림지도
+    function_gpkg_name: str = "gangwon_function_light.gpkg"            # 산림기능구분도
+    landslide_filename: str = "gangwon_landslide.tif"                  # 산사태위험지도
 
     # 임상도 좌표계 (파일에 .prj가 없을 때의 폴백)
     forest_crs_fallback: str = CRS_KOREA_TM
@@ -120,6 +124,18 @@ class Settings:
     @property
     def disease_path(self) -> Path:
         return self.data_dir / self.disease_gpkg_name
+
+    @property
+    def afforestation_path(self) -> Path:
+        return self.data_dir / self.afforestation_gpkg_name
+
+    @property
+    def function_path(self) -> Path:
+        return self.data_dir / self.function_gpkg_name
+
+    @property
+    def landslide_path(self) -> Path:
+        return self.data_dir / self.landslide_filename
 
     @property
     def stations_path(self) -> Path:

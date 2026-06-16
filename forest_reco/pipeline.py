@@ -25,6 +25,9 @@ from .site_map import SiteMap
 from .site_detail_map import SiteDetailMap
 from .precip_raster import PrecipRaster
 from .management_map import ManagementLayers
+from .afforestation_map import AfforestationMap
+from .forest_function_map import ForestFunctionMap
+from .landslide_raster import LandslideRaster
 from .terrain import Terrain
 from .climate import classify_zone
 from .recommender import SiteContext, recommend, GOALS
@@ -55,6 +58,12 @@ class DataSources:
     _precip_tried: bool = False
     _management: Optional[ManagementLayers] = None
     _management_tried: bool = False
+    _afforestation: object = None
+    _afforestation_tried: bool = False
+    _forest_function: object = None
+    _forest_function_tried: bool = False
+    _landslide: object = None
+    _landslide_tried: bool = False
 
     def _maybe_make_mock(self):
         from .mockdata import ensure_mock_dataset
@@ -127,6 +136,45 @@ class DataSources:
             except Exception:  # noqa: BLE001
                 self._management = None
         return self._management
+
+    @property
+    def afforestation(self):
+        """맞춤형조림지도(공식 추천수종) 지연 로딩. light_mode/없으면 None."""
+        if getattr(self.settings, "light_mode", False):
+            return None
+        if self._afforestation is None and not self._afforestation_tried:
+            self._afforestation_tried = True
+            try:
+                self._afforestation = AfforestationMap.load(settings=self.settings)
+            except Exception:  # noqa: BLE001
+                self._afforestation = None
+        return self._afforestation
+
+    @property
+    def forest_function(self):
+        """산림기능구분도 지연 로딩. light_mode/없으면 None."""
+        if getattr(self.settings, "light_mode", False):
+            return None
+        if self._forest_function is None and not self._forest_function_tried:
+            self._forest_function_tried = True
+            try:
+                self._forest_function = ForestFunctionMap.load(settings=self.settings)
+            except Exception:  # noqa: BLE001
+                self._forest_function = None
+        return self._forest_function
+
+    @property
+    def landslide(self):
+        """산사태위험지도(window read) 지연 로딩. light_mode/없으면 None."""
+        if getattr(self.settings, "light_mode", False):
+            return None
+        if self._landslide is None and not self._landslide_tried:
+            self._landslide_tried = True
+            try:
+                self._landslide = LandslideRaster.load(settings=self.settings)
+            except Exception:  # noqa: BLE001
+                self._landslide = None
+        return self._landslide
 
     @property
     def db(self) -> SpeciesDB:
@@ -365,13 +413,30 @@ def analyze(
         "sdm_n_classes": (sdm_report or {}).get("n_classes") if sdm_used else None,
     }
 
-    # 6.5) 추천 신뢰도 보완 지표 (데스크탑/실데이터 전용; 기본 OFF → 모바일/HF 안정성 유지)
+    # 6.5) 신규 공공데이터 + 추천 신뢰도 (데스크탑/실데이터 전용; 기본 OFF → 모바일/HF 안정성 유지)
     if compute_reliability:
+        afq = ffq = lsq = None
+        try:
+            afq = sources.afforestation.query(rlon, rlat, point_crs=CRS_WGS84) if sources.afforestation else None
+        except Exception:  # noqa: BLE001
+            afq = None
+        try:
+            ffq = sources.forest_function.query(rlon, rlat, point_crs=CRS_WGS84) if sources.forest_function else None
+        except Exception:  # noqa: BLE001
+            ffq = None
+        try:
+            lsq = sources.landslide.risk_summary(rlon, rlat, radius_m, point_crs=CRS_WGS84) if sources.landslide else None
+        except Exception:  # noqa: BLE001
+            lsq = None
+        result["afforestation"] = afq.as_dict() if (afq and afq.found) else None
+        result["forest_function"] = ffq.as_dict() if (ffq and ffq.found) else None
+        result["landslide"] = lsq
         try:
             from .reliability import compute_reliability as _calc_reliability
             result["reliability"] = _calc_reliability(
                 sources=sources, site=site, rec_dicts=rec_dicts,
-                sdm_probs=sdm_probs, radius_m=radius_m, db=sources.db)
+                sdm_probs=sdm_probs, radius_m=radius_m, db=sources.db,
+                official_species=(afq.all_species if (afq and afq.found) else None))
         except Exception:  # noqa: BLE001 - 보조 지표이므로 실패해도 추천은 그대로
             result["reliability"] = None
 

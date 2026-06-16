@@ -81,6 +81,30 @@ def _reliability_html(rel: dict) -> str:
 """
 
 
+def _official_html(d: dict) -> str:
+    """공식 데이터(맞춤형조림지도·산림기능구분도·산사태위험지도) 비교 섹션."""
+    aff = d.get("afforestation") or {}
+    ff = d.get("forest_function") or {}
+    ls = d.get("landslide") or {}
+    off = (d.get("reliability") or {}).get("official_afforestation") or {}
+    if not (aff or ff or ls):
+        return ""
+    rows = ""
+    if aff:
+        rows += _row("공식 대표수종(맞춤형조림지도)", ", ".join(aff.get("대표수종") or []) or NO_INFO)
+        if aff.get("추가수종"):
+            rows += _row("추가 수종", ", ".join(aff.get("추가수종")))
+        if off.get("message"):
+            rows += _row("공식 조림 일치", f"{off.get('level', '')} — {off.get('message', '')}")
+    if ff:
+        rows += _row("공식 산림기능", (ff.get("주기능") or NO_INFO)
+                     + (" (절대보전지역)" if ff.get("절대보전지역") else ""))
+    if ls:
+        rows += _row("산사태 위험등급(지점)", f"{ls.get('point_grade')}등급 {ls.get('point_label', '')}")
+        rows += _row("반경 고위험(1·2등급) 비율", f"{(ls.get('high_risk_ratio') or 0) * 100:.0f}%")
+    return f"<h2>9. 공식 데이터 비교 · 재해</h2><table>{rows}</table>"
+
+
 def _collect_report_data(result: dict) -> dict:
     return {
         "loc": result.get("location") or {},
@@ -93,6 +117,9 @@ def _collect_report_data(result: dict) -> dict:
         "diag": result.get("diagnosis") or {},
         "mg_radius": result.get("management_radius") or {},
         "reliability": result.get("reliability") or {},
+        "afforestation": result.get("afforestation") or {},
+        "forest_function": result.get("forest_function") or {},
+        "landslide": result.get("landslide") or {},
         "recs": result.get("recommendations") or [],
         "explanation": (result.get("explanation") or {}).get("text"),
         "generated": datetime.now().strftime("%Y-%m-%d %H:%M"),
@@ -201,6 +228,7 @@ def create_report(result: dict) -> str:
     <li>최근 숲가꾸기 이력이 있는 지역은 기존 관리 방향과 충돌하지 않도록 계획을 조정하세요.</li>
   </ul>
   {_reliability_html(d["reliability"])}
+  {_official_html(d)}
 </body>
 </html>"""
 
@@ -355,6 +383,23 @@ def create_pdf_report(result: dict) -> bytes:
                            ("환경 다양성", rel.get("environment_diversity"))):
             sub = sub or {}
             story.append(para(f"• {label}: {_plain(sub.get('level'))} — {_plain(sub.get('message'))}"))
+
+    aff = d.get("afforestation") or {}
+    ff = d.get("forest_function") or {}
+    ls = d.get("landslide") or {}
+    if aff or ff or ls:
+        off = (rel or {}).get("official_afforestation") or {}
+        story.append(Paragraph("9. 공식 데이터 비교 · 재해", h2))
+        if aff:
+            story.append(para("• 공식 대표수종: " + (", ".join(aff.get("대표수종") or []) or NO_INFO)))
+            if off.get("message"):
+                story.append(para(f"• 공식 조림 일치: {_plain(off.get('level'))} — {_plain(off.get('message'))}"))
+        if ff:
+            story.append(para("• 공식 산림기능: " + _plain(ff.get("주기능"))
+                              + (" (절대보전지역)" if ff.get("절대보전지역") else "")))
+        if ls:
+            story.append(para(f"• 산사태 위험등급(지점): {_plain(ls.get('point_grade'))}등급 "
+                              f"{_plain(ls.get('point_label'))} · 반경 고위험 {(ls.get('high_risk_ratio') or 0) * 100:.0f}%"))
 
     buf = BytesIO()
     doc = SimpleDocTemplate(

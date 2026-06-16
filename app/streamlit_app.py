@@ -732,6 +732,37 @@ if res is not None:
             st.caption("· 병해충 발생 이력이 있는 지역은 초기 모니터링을 강화하세요.")
             st.caption("· 최근 조림·숲가꾸기 이력과 충돌하지 않도록 관리 계획을 확인하세요.")
 
+    # --- 산림청 공식 조림지도 비교 (데스크탑 전용) ---
+    _aff = res.get("afforestation")
+    _off = (res.get("reliability") or {}).get("official_afforestation") or {}
+    if _aff:
+        st.subheader("🏛 산림청 공식 조림 비교")
+        _rep = ", ".join(_aff.get("대표수종") or []) or "-"
+        _add = ", ".join(_aff.get("추가수종") or [])
+        _badge = {"높음": "✅ 공식 추천과 일치 (신뢰도↑)", "보통": "➖ 일부 일치",
+                  "낮음": "⚠️ 공식 추천과 불일치"}.get(_off.get("level"), "")
+        _html = f"공식 대표수종: <b>{html_escape(_rep)}</b>"
+        if _add:
+            _html += f"<br>추가수종: {html_escape(_add)}"
+        if _badge:
+            _html += f"<br>{html_escape(_badge)} — {html_escape(str(_off.get('message', '')))}"
+        st.markdown(f"<div class='mobile-hero'>{_html}</div>", unsafe_allow_html=True)
+
+    # --- 산림기능 · 산사태 위험 (데스크탑 전용) ---
+    _ff = res.get("forest_function")
+    _ls = res.get("landslide")
+    if _ff or _ls:
+        _c1, _c2 = st.columns(2)
+        if _ff:
+            _abs = " · 절대보전지역" if _ff.get("절대보전지역") else ""
+            _c1.markdown(f"**🌲 산림기능**<br>{html_escape(str(_ff.get('주기능', '-')))}{_abs}",
+                         unsafe_allow_html=True)
+        if _ls:
+            _g, _lbl = _ls.get("point_grade"), _ls.get("point_label", "")
+            _hr = (_ls.get("high_risk_ratio") or 0) * 100
+            _c2.markdown(f"**⚠️ 산사태 위험**<br>{_g}등급({html_escape(str(_lbl))}) · 반경 고위험 {_hr:.0f}%",
+                         unsafe_allow_html=True)
+
     # --- 추천 신뢰도 분석 (데스크탑/실데이터 모드에서만 result에 존재) ---
     rel = res.get("reliability")
     if rel:
@@ -753,6 +784,9 @@ if res is not None:
         m1.metric("SDM 확신도", f"{_LV.get(gap.get('level'), '')} {gap.get('level', '-')}")
         m2.metric(f"주변 일치도({_rlabel})", f"{_LV.get(nb.get('level'), '')} {nb.get('level', '-')}")
         m3.metric(f"환경 다양성({_rlabel})", f"{_LV.get(dv.get('level'), '')} {dv.get('level', '-')}")
+        _ofa = rel.get("official_afforestation") or {}
+        if _ofa.get("level") and _ofa.get("level") != "분석 제한":
+            st.caption(f"🏛 공식 조림 일치: {_LV.get(_ofa.get('level'), '')} {_ofa.get('level')} — {html_escape(str(_ofa.get('message', '')))}")
         with st.expander("상세 신뢰도 계산 근거 보기"):
             st.markdown("**1. SDM 확률 차이 기반 신뢰도**")
             if gap.get("gap") is not None:
@@ -782,6 +816,29 @@ if res is not None:
             if _bits:
                 st.caption(" · ".join(_bits))
             st.caption(dv.get("message", ""))
+
+    # --- 관리 방향 (데스크탑 전용, 규칙기반) ---
+    if res.get("afforestation") or res.get("forest_function") or res.get("landslide"):
+        st.subheader("📋 관리 방향")
+        _mgmt = []
+        _off2 = (res.get("reliability") or {}).get("official_afforestation") or {}
+        if _off2.get("level") == "높음":
+            _mgmt.append("공식 조림 추천과 일치해 조림 후보 수종으로 검토 가능합니다.")
+        elif _off2.get("level") == "낮음":
+            _mgmt.append("SDM 추천과 공식 조림 추천이 달라 현장 토양·수분 조건 확인이 필요합니다.")
+        _ls2 = res.get("landslide")
+        if _ls2 and (_ls2.get("high_risk_ratio") or 0) >= 0.3:
+            _mgmt.append(f"반경 내 산사태 1·2등급이 {(_ls2['high_risk_ratio']) * 100:.0f}% — 조림·벌채·작업로 개설 전 재해위험 검토가 필요합니다.")
+        elif _ls2 and _ls2.get("point_grade") in (1, 2):
+            _mgmt.append("산사태 고위험 등급(1·2등급) — 작업 전 현장 재해 확인이 필요합니다.")
+        _ff2 = res.get("forest_function")
+        if _ff2 and _ff2.get("주기능"):
+            _abs2 = " (절대보전지역)" if _ff2.get("절대보전지역") else ""
+            _mgmt.append(f"공식 산림기능은 '{_ff2['주기능']}'{_abs2} — 해당 기능에 맞춘 관리가 권장됩니다.")
+        if not _mgmt:
+            _mgmt.append("특이 관리 사항은 확인되지 않았습니다. 식재 전 현장 확인을 권장합니다.")
+        for _m in _mgmt:
+            st.caption("· " + _m)
 
     # --- LLM/폴백 설명 ---
     st.subheader("📝 AI 설명")

@@ -119,6 +119,50 @@ def neighbor_agreement(area_shares: dict, recommended_top3, recommended_top1,
 
 
 # ---------------------------------------------------------------------------
+# 2-b. 산림청 맞춤형조림지도 공식 추천과의 일치도
+# ---------------------------------------------------------------------------
+def official_afforestation_agreement(official_species, recommended_top3, recommended_top1,
+                                     db=None) -> dict:
+    """SDM 추천과 산림청 공식 조림 추천(대표/유사/추가수종)의 일치 여부.
+
+    추천명(KB 표기)과 공식명(임상도 표기)이 달라도 db로 정규화해 공정 비교한다.
+    db 없으면 정확 일치로 폴백(단위테스트 호환).
+    """
+    if not official_species:
+        return _limited("맞춤형조림지도 범위 밖이라 공식 조림 일치도를 계산할 수 없습니다.")
+
+    def canon(name):
+        if db is not None and name:
+            try:
+                m = db.match(name)
+                if m:
+                    return m.korean_name
+            except Exception:  # noqa: BLE001
+                pass
+        return name
+
+    official_canon = {canon(s) for s in official_species}
+    rec3 = [s for s in (recommended_top3 or []) if s][:3]
+    matched = [s for s in rec3 if canon(s) in official_canon]
+    top1_match = bool(recommended_top1 and canon(recommended_top1) in official_canon)
+    agreement = round(len(matched) / len(rec3), 3) if rec3 else 0.0
+    if top1_match:
+        level = LEVEL_HIGH
+        msg = "SDM 추천 1위가 산림청 공식 조림 추천에도 포함됩니다 → 공식 데이터와 일치(신뢰도↑)."
+    elif matched:
+        level = LEVEL_MID
+        msg = f"추천 Top-3 중 일부가 공식 조림 추천과 일치합니다({', '.join(matched)})."
+    else:
+        level = LEVEL_LOW
+        msg = "SDM 추천과 산림청 공식 조림 추천이 다릅니다. 현장 토양·수분 조건을 추가로 확인하세요."
+    return {
+        "official_species": list(official_species),
+        "matched": matched, "top1_match": top1_match,
+        "agreement": agreement, "level": level, "message": msg,
+    }
+
+
+# ---------------------------------------------------------------------------
 # 3. 반경 내 환경 다양성 지수
 # ---------------------------------------------------------------------------
 def shannon_index(shares: dict) -> float:
@@ -180,12 +224,15 @@ def environment_diversity(elevation_std, slope_std, species_shannon,
 # ---------------------------------------------------------------------------
 # 4. 종합 추천 신뢰도
 # ---------------------------------------------------------------------------
-def overall_reliability(gap_res: dict, neighbor_res: dict, diversity_res: dict) -> dict:
+def overall_reliability(gap_res: dict, neighbor_res: dict, diversity_res: dict,
+                        official_res: Optional[dict] = None) -> dict:
     pts = [
         _PTS.get((gap_res or {}).get("level")),
         _PTS.get((neighbor_res or {}).get("level")),
         _PTS_INV.get((diversity_res or {}).get("level")),  # 다양성은 역방향
     ]
+    if official_res is not None:
+        pts.append(_PTS.get((official_res or {}).get("level")))  # 공식 조림 일치
     vals = [p for p in pts if p is not None]
     if not vals:
         return _limited("신뢰도 지표를 충분히 계산하지 못해 종합 신뢰도를 산정할 수 없습니다.")
@@ -225,8 +272,9 @@ def _normalize_shares(raw: dict, db) -> dict:
 
 
 def compute_reliability(sources, site, rec_dicts, sdm_probs,
-                        radius_m: int = DEFAULT_RADIUS_M, db=None) -> dict:
-    """4개 신뢰도 지표를 계산해 합친 dict 반환. 어떤 단계가 실패해도 앱은 멈추지 않는다."""
+                        radius_m: int = DEFAULT_RADIUS_M, db=None,
+                        official_species=None) -> dict:
+    """신뢰도 지표들을 계산해 합친 dict 반환. 어떤 단계가 실패해도 앱은 멈추지 않는다."""
     db = db if db is not None else getattr(sources, "db", None)
     top3 = [r.get("수종") for r in (rec_dicts or [])[:3] if r.get("수종")]
     top1 = top3[0] if top3 else None
@@ -259,9 +307,15 @@ def compute_reliability(sources, site, rec_dicts, sdm_probs,
     except Exception:  # noqa: BLE001
         diversity = _limited("환경 다양성 분석을 현재 데이터 범위에서 계산할 수 없습니다.", radius_m)
 
+    # 3-b) 산림청 공식 조림지도 일치
+    try:
+        official = official_afforestation_agreement(official_species, top3, top1, db=db)
+    except Exception:  # noqa: BLE001
+        official = _limited("공식 조림 일치도 계산 중 오류가 발생했습니다.")
+
     # 4) 종합
     try:
-        overall = overall_reliability(gap, neighbor, diversity)
+        overall = overall_reliability(gap, neighbor, diversity, official)
     except Exception:  # noqa: BLE001
         overall = _limited("종합 신뢰도 산정 중 오류가 발생했습니다.")
 
@@ -269,6 +323,7 @@ def compute_reliability(sources, site, rec_dicts, sdm_probs,
         "radius_m": radius_m,
         "sdm_probability_gap": gap,
         "neighbor_agreement": neighbor,
+        "official_afforestation": official,
         "environment_diversity": diversity,
         "overall_reliability": overall,
     }
